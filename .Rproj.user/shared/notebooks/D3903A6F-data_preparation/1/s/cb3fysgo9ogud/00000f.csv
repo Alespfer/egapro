@@ -1,0 +1,6 @@
+"0","# Librairies pour les manipulations et la gestion des données"
+"0","library(dplyr)"
+"0","library(sf)"
+"0",""
+"0","# On charge toutes nos fonctions personnalisées"
+"0","source(""utils.R"")"

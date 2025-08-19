@@ -1,0 +1,512 @@
+
+# ---------------------------------------------------------------------------
+#  Indicateurs socio-démographiques  (IC + ACT5)  – autotest
+# ---------------------------------------------------------------------------
+create_socio_features <- function(df_pop_structure,
+df_ic,
+df_act5) {
+message("--- Création des indicateurs socio-démographiques (IC + ACT5) ---")
+## 0) clés homogènes --------------------------------------------------------
+df_pop_structure <- rename_to_com(df_pop_structure)
+df_ic            <- rename_to_com(df_ic)
+df_act5          <- rename_to_com(df_act5)
+## 1) Agrégat IC : actifs 15-64 --------------------------------------------
+ic_agg <- df_ic |>
+group_by(com) |>
+summarise(
+femmes_actives_15_64 = sum(p21_fact1564, na.rm = TRUE),
+actifs_totaux_15_64  = sum(c21_act1564,  na.rm = TRUE),
+.groups = "drop"
+) |>
+rename(code_commune = com)
+## 2) Agrégat ACT5 : CSP × sexe  -------------------------------------------
+act5_agg <- df_act5 |>
+mutate(across(matches("^cs1_"), as.numeric)) |>
+group_by(com) |>
+summarise(
+# Femmes cadres & prof. intermédiaires 15-64 (sexe 2)
+femmes_cadres_15_64   = rowSums(across(matches("^cs1_63_ageq65[0-6]{2}_sexe2$")), na.rm = TRUE),
+femmes_profint_15_64  = rowSums(across(matches("^cs1_64_ageq65[0-6]{2}_sexe2$")), na.rm = TRUE),
+# Totaux hommes+femmes
+cadres_totaux_15_64   = rowSums(across(matches("^cs1_63_ageq65[0-6]{2}_sexe[12]$")), na.rm = TRUE),
+profint_totaux_15_64  = rowSums(across(matches("^cs1_64_ageq65[0-6]{2}_sexe[12]$")), na.rm = TRUE),
+.groups = "drop"
+) |>
+rename(code_commune = com)
+## 3) Structure population : dénominateurs ----------------------------------
+pop_agg <- df_pop_structure |>
+select(com,
+p21_popf,      # femmes tous âges
+p21_f0014,     # 0-14
+p21_f65p,      # 65 +
+p21_diplmin_f_bac2,
+p21_diplmin_f_bac34,
+p21_diplmin_f_bac5p) |>
+mutate(
+p21_f1564 = p21_popf - p21_f0014 - p21_f65p,   # femmes 15-64
+p21_f15p  = p21_popf - p21_f0014               # femmes ≥15 ans
+) |>
+rename(code_commune = com)
+## 4) Jointure + indicateurs -------------------------------------------------
+res <- pop_agg |>
+left_join(ic_agg,  by = "code_commune") |>
+left_join(act5_agg, by = "code_commune") |>
+mutate(
+femmes_dipl_sup          = p21_diplmin_f_bac2 + p21_diplmin_f_bac34 + p21_diplmin_f_bac5p,
+taux_activite_femmes     = 100 * femmes_actives_15_64    / p21_f1564,
+part_femmes_cadres       = 100 * femmes_cadres_15_64     / actifs_totaux_15_64,
+part_femmes_prof_inter   = 100 * femmes_profint_15_64    / actifs_totaux_15_64,
+taux_femmes_parmi_cadres = 100 * femmes_cadres_15_64     / cadres_totaux_15_64,
+part_femmes_dipl_sup     = 100 * femmes_dipl_sup         / p21_f15p
+) |>
+select(code_commune,
+taux_activite_femmes,
+part_femmes_cadres,
+part_femmes_prof_inter,
+taux_femmes_parmi_cadres,
+part_femmes_dipl_sup) |>
+mutate(across(where(is.numeric), ~ replace_na(.x, 0)))
+message("✅ Indicateurs calculés pour ", nrow(res), " communes.")
+res
+}
+res <- create_socio_features(raw_pop_structure, raw_ic_activite, raw_act5)
+## 1. Afficher la liste complète dans la console
+names(raw_pop_structure)                       # tout
+## 2. Voir les 50 premiers / derniers
+head(names(raw_pop_structure), 50)             # début
+tail(names(raw_pop_structure), 50)             # fin
+## 3. Filtrer par mot-clé (insensible à la casse) ------------------------------
+grep("dipl", names(raw_pop_structure), value = TRUE, ignore.case = TRUE)
+grep("bac",  names(raw_pop_structure), value = TRUE, ignore.case = TRUE)
+## Variante tidyverse (plus lisible)
+library(stringr)
+str_subset(names(raw_pop_structure), regex("dipl.*f", ignore_case = TRUE))
+library(dplyr)
+library(tidyr)
+# ---------------------------------------------------------------------------
+# Helper : renomme la clé communale en "com"
+# ---------------------------------------------------------------------------
+rename_to_com <- function(df) {
+cand <- intersect(names(df), c("com", "codgeo", "code_commune"))
+if (length(cand) == 0)
+stop("❌ Colonne code commune introuvable.")
+dplyr::rename(df, com = !!cand[1])
+}
+# ---------------------------------------------------------------------------
+# Indicateurs socio-démographiques  (IC + ACT5)  – sans diplôme
+# ---------------------------------------------------------------------------
+create_socio_features <- function(df_pop_structure,
+df_ic,
+df_act5) {
+message("--- Création des indicateurs socio-démographiques (sans diplôme) ---")
+## 0) Clés homogènes --------------------------------------------------------
+df_pop_structure <- rename_to_com(df_pop_structure)
+df_ic            <- rename_to_com(df_ic)
+df_act5          <- rename_to_com(df_act5)
+## 1) Agrégat IC : actifs 15-64 --------------------------------------------
+ic_agg <- df_ic %>%
+group_by(com) %>%
+summarise(
+femmes_actives_15_64 = sum(p21_fact1564, na.rm = TRUE),
+actifs_totaux_15_64  = sum(c21_act1564,  na.rm = TRUE),
+.groups = "drop"
+) %>%
+rename(code_commune = com)
+## 2) Agrégat ACT5 : CSP × sexe --------------------------------------------
+act5_agg <- df_act5 %>%
+mutate(across(matches("^cs1_"), as.numeric)) %>%
+group_by(com) %>%
+summarise(
+# Femmes cadres & prof. intermédiaires 15-64 (sexe 2)
+femmes_cadres_15_64   = rowSums(across(matches("^cs1_63_ageq65[0-6]{2}_sexe2$")), na.rm = TRUE),
+femmes_profint_15_64  = rowSums(across(matches("^cs1_64_ageq65[0-6]{2}_sexe2$")), na.rm = TRUE),
+# Totaux hommes + femmes
+cadres_totaux_15_64   = rowSums(across(matches("^cs1_63_ageq65[0-6]{2}_sexe[12]$")), na.rm = TRUE),
+.groups = "drop"
+) %>%
+rename(code_commune = com)
+## 3) Structure population : dénominateurs ----------------------------------
+pop_agg <- df_pop_structure %>%
+select(com,
+p21_popf,      # femmes tous âges
+p21_f0014,     # 0-14
+p21_f65p) %>%  # 65+
+mutate(
+p21_f1564 = p21_popf - p21_f0014 - p21_f65p,  # femmes 15-64
+p21_f15p  = p21_popf - p21_f0014              # femmes ≥15 ans
+) %>%
+rename(code_commune = com)
+## 4) Jointure + calculs ----------------------------------------------------
+res <- pop_agg %>%
+left_join(ic_agg,  by = "code_commune") %>%
+left_join(act5_agg, by = "code_commune") %>%
+mutate(
+taux_activite_femmes     = 100 * femmes_actives_15_64 / p21_f1564,
+part_femmes_cadres       = 100 * femmes_cadres_15_64  / actifs_totaux_15_64,
+part_femmes_prof_inter   = 100 * femmes_profint_15_64 / actifs_totaux_15_64,
+taux_femmes_parmi_cadres = 100 * femmes_cadres_15_64  / cadres_totaux_15_64
+) %>%
+select(code_commune,
+taux_activite_femmes,
+part_femmes_cadres,
+part_femmes_prof_inter,
+taux_femmes_parmi_cadres) %>%
+mutate(across(where(is.numeric), ~ replace_na(.x, 0)))
+message("✅ Indicateurs calculés pour ", nrow(res), " communes.")
+res
+}
+res <- create_socio_features(raw_pop_structure, raw_ic_activite, raw_act5)
+head(res)
+source("utils.R")
+communes_features <- create_socio_features(
+df_pop_structure = raw_pop_structure,
+df_ic            = raw_ic_activite,
+df_act5          = raw_act5
+)
+# 3.1 Chargement du fond de carte des communes
+map_com_prepared <- load_and_prepare_map()
+master_df_historique <- egapro_prepared %>%
+# Jointure avec SIRENE pour la localisation. On ne garde que les entreprises
+# dont le siège social a pu être géolocalisé.
+inner_join(sirene_clean, by = "siren") %>%
+# Jointure avec le fond de carte pour filtrer sur le périmètre géographique
+# et récupérer les informations EPT/DEP propres. On utilise st_drop_geometry
+# pour ne joindre que les attributs, pas les géométries.
+inner_join(
+st_drop_geometry(map_com_prepared),
+by = c("code_commune" = "com_code")
+) %>%
+# Jointure avec les indicateurs socio-démographiques de la commune.
+# On utilise une jointure à gauche au cas où certaines communes manqueraient.
+left_join(communes_features, by = "code_commune")
+message(
+"✅ Table 'master_df_historique' finale créée avec ",
+scales::comma(nrow(master_df_historique)),
+" observations (entreprise-année)."
+)
+# Créer le dossier de destination s'il n'existe pas
+output_dir <- "data_shiny"
+if (!dir.exists(output_dir)) {
+dir.create(output_dir)
+}
+# 5.1 Sauvegarde de la table de données principale
+saveRDS(master_df_historique, file.path(output_dir, "master_df_historique.RDS"))
+# 5.2 Sauvegarde des fonds de carte
+saveRDS(map_com_prepared, file.path(output_dir, "map_com.RDS"))
+# On crée et sauvegarde les fonds de carte agrégés
+map_ept_prepared <- aggregate_map(map_com_prepared, level = "ept")
+saveRDS(map_ept_prepared, file.path(output_dir, "map_ept.RDS"))
+map_dep_prepared <- aggregate_map(map_com_prepared, level = "dep")
+saveRDS(map_dep_prepared, file.path(output_dir, "map_dep.RDS"))
+message(
+"✅ Tous les fichiers ont été sauvegardés dans le dossier '",
+output_dir,
+"'. Le projet est prêt pour l'application Shiny."
+)
+View(master_df_historique)
+shiny::runApp()
+###############################################################################
+#  Petite aide : renomme la colonne communale en "com" si besoin
+###############################################################################
+rename_to_com <- function(df) {
+cand <- intersect(names(df), c("com", "codgeo", "code_commune"))
+if (length(cand) == 0)
+stop("❌ Colonne du code commune introuvable.")
+dplyr::rename(df, com = !!cand[1])
+}
+###############################################################################
+#  Fonction principale
+###############################################################################
+create_socio_features <- function(df_pop_structure,
+df_ic,
+df_act5) {
+message("--- Création des indicateurs socio-démographiques (IC + ACT5) ---")
+## 0) Clés homogènes --------------------------------------------------------
+df_pop_structure <- rename_to_com(df_pop_structure)
+df_ic            <- rename_to_com(df_ic)
+df_act5          <- rename_to_com(df_act5)
+## 1) AGRÉGAT IC : actifs 15-64 --------------------------------------------
+ic_agg <- df_ic %>%
+dplyr::group_by(com) %>%
+dplyr::summarise(
+femmes_actives_15_64 = sum(p21_fact1564, na.rm = TRUE),
+actifs_totaux_15_64  = sum(c21_act1564,   na.rm = TRUE),
+.groups = "drop"
+) %>%
+dplyr::rename(code_commune = com)
+## 2) AGRÉGAT ACT5 : CSP × sexe (motifs regex corrigés) ---------------------
+# liste des colonnes « femmes cadres » et « femmes prof. intermédiaires »
+cols_cadres_f  <- stringr::str_subset(names(df_act5),
+"^cs1_63_ageq65\\d{3}_sexe2$")
+cols_profint_f <- stringr::str_subset(names(df_act5),
+"^cs1_64_ageq65\\d{3}_sexe2$")
+# totaux H+F
+cols_cadres_tot <- stringr::str_subset(names(df_act5),
+"^cs1_63_ageq65\\d{3}_sexe[12]$")
+cols_profint_tot <- stringr::str_subset(names(df_act5),
+"^cs1_64_ageq65\\d{3}_sexe[12]$")
+act5_agg <- df_act5 %>%
+dplyr::mutate(across(matches("^cs1_"), as.numeric)) %>%
+dplyr::group_by(com) %>%
+dplyr::summarise(
+femmes_cadres_15_64   = rowSums(dplyr::across(all_of(cols_cadres_f)),  na.rm = TRUE),
+femmes_profint_15_64  = rowSums(dplyr::across(all_of(cols_profint_f)), na.rm = TRUE),
+cadres_totaux_15_64   = rowSums(dplyr::across(all_of(cols_cadres_tot)),   na.rm = TRUE),
+profint_totaux_15_64  = rowSums(dplyr::across(all_of(cols_profint_tot)),  na.rm = TRUE),
+.groups = "drop"
+) %>%
+dplyr::rename(code_commune = com)
+## 3) STRUCTURE POP : dénominateurs -----------------------------------------
+pop_agg <- df_pop_structure %>%
+dplyr::select(com,
+p21_popf, p21_f0014, p21_f65p) %>%          # colonnes existantes
+dplyr::mutate(p21_f1564 = p21_popf - p21_f0014 - p21_f65p) %>%
+dplyr::rename(code_commune = com)
+## 4) JOINTURE + indicateurs -----------------------------------------------
+res <- pop_agg %>%
+dplyr::left_join(ic_agg,  by = "code_commune") %>%
+dplyr::left_join(act5_agg, by = "code_commune") %>%
+dplyr::mutate(
+taux_activite_femmes     = 100 * femmes_actives_15_64    / p21_f1564,
+part_femmes_cadres       = 100 * femmes_cadres_15_64     / actifs_totaux_15_64,
+part_femmes_prof_inter   = 100 * femmes_profint_15_64    / actifs_totaux_15_64,
+taux_femmes_parmi_cadres = 100 * femmes_cadres_15_64     / cadres_totaux_15_64
+) %>%
+dplyr::select(code_commune,
+taux_activite_femmes,
+part_femmes_cadres,
+part_femmes_prof_inter,
+taux_femmes_parmi_cadres) %>%
+dplyr::mutate(across(where(is.numeric), ~ tidyr::replace_na(.x, 0)))
+message("✅ Indicateurs calculés pour ", nrow(res), " communes.")
+res
+}
+communes_features <- create_socio_features(
+df_pop_structure = raw_pop_structure,
+df_ic            = raw_ic_activite,
+df_act5          = raw_act5
+)
+dplyr::glimpse(communes_features)      # vérifiez que les pourcentages ≠ 0
+source("utils.R")
+# 2.3 Indicateurs socio‑démographiques -----------------
+#    —> nouvelle signature avec df_ic et df_act5
+communes_features <- create_socio_features(
+df_pop_structure = raw_pop_structure,
+df_ic            = raw_ic_activite,
+df_act5          = raw_act5
+)
+View(communes_features)
+# 3.1 Chargement du fond de carte des communes
+map_com_prepared <- load_and_prepare_map()
+master_df_historique <- egapro_prepared %>%
+# Jointure avec SIRENE pour la localisation. On ne garde que les entreprises
+# dont le siège social a pu être géolocalisé.
+inner_join(sirene_clean, by = "siren") %>%
+# Jointure avec le fond de carte pour filtrer sur le périmètre géographique
+# et récupérer les informations EPT/DEP propres. On utilise st_drop_geometry
+# pour ne joindre que les attributs, pas les géométries.
+inner_join(
+st_drop_geometry(map_com_prepared),
+by = c("code_commune" = "com_code")
+) %>%
+# Jointure avec les indicateurs socio-démographiques de la commune.
+# On utilise une jointure à gauche au cas où certaines communes manqueraient.
+left_join(communes_features, by = "code_commune")
+message(
+"✅ Table 'master_df_historique' finale créée avec ",
+scales::comma(nrow(master_df_historique)),
+" observations (entreprise-année)."
+)
+# Créer le dossier de destination s'il n'existe pas
+output_dir <- "data_shiny"
+if (!dir.exists(output_dir)) {
+dir.create(output_dir)
+}
+# 5.1 Sauvegarde de la table de données principale
+saveRDS(master_df_historique, file.path(output_dir, "master_df_historique.RDS"))
+# 5.2 Sauvegarde des fonds de carte
+saveRDS(map_com_prepared, file.path(output_dir, "map_com.RDS"))
+# On crée et sauvegarde les fonds de carte agrégés
+map_ept_prepared <- aggregate_map(map_com_prepared, level = "ept")
+saveRDS(map_ept_prepared, file.path(output_dir, "map_ept.RDS"))
+map_dep_prepared <- aggregate_map(map_com_prepared, level = "dep")
+saveRDS(map_dep_prepared, file.path(output_dir, "map_dep.RDS"))
+message(
+"✅ Tous les fichiers ont été sauvegardés dans le dossier '",
+output_dir,
+"'. Le projet est prêt pour l'application Shiny."
+)
+View(master_df_historique)
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+View(master_df_historique)
+# 2.1 Égapro -------------------------------------------
+egapro_prepared <- prepare_egapro_data(raw_egapro)
+# 2.2 SIRENE -------------------------------------------
+sirene_clean <- clean_sirene_data(raw_sirene)
+# 2.3 Indicateurs socio‑démographiques -----------------
+#    —> nouvelle signature avec df_ic et df_act5
+communes_features <- create_socio_features(
+df_pop_structure = raw_pop_structure,
+df_ic            = raw_ic_activite,
+df_act5          = raw_act5
+)
+# communes_features : une ligne par code_commune (75056 inclus)
+paris_row <- communes_features %>% filter(code_commune == "75056")
+# Crée un vecteur des 20 codes arrondissements
+codes_arr <- sprintf("751%02d", 1:20)
+# Duplique la ligne 75056 et remplace code_commune
+paris_arr <- paris_row[rep(1, 20), ] %>%
+mutate(code_commune = codes_arr)
+# Ajoute à la table
+communes_features <- bind_rows(communes_features, paris_arr)
+# 3.1 Chargement du fond de carte des communes
+map_com_prepared <- load_and_prepare_map()
+master_df_historique <- egapro_prepared %>%
+# Jointure avec SIRENE pour la localisation. On ne garde que les entreprises
+# dont le siège social a pu être géolocalisé.
+inner_join(sirene_clean, by = "siren") %>%
+# Jointure avec le fond de carte pour filtrer sur le périmètre géographique
+# et récupérer les informations EPT/DEP propres. On utilise st_drop_geometry
+# pour ne joindre que les attributs, pas les géométries.
+inner_join(
+st_drop_geometry(map_com_prepared),
+by = c("code_commune" = "com_code")
+) %>%
+# Jointure avec les indicateurs socio-démographiques de la commune.
+# On utilise une jointure à gauche au cas où certaines communes manqueraient.
+left_join(communes_features, by = "code_commune")
+message(
+"✅ Table 'master_df_historique' finale créée avec ",
+scales::comma(nrow(master_df_historique)),
+" observations (entreprise-année)."
+)
+# Créer le dossier de destination s'il n'existe pas
+output_dir <- "data_shiny"
+if (!dir.exists(output_dir)) {
+dir.create(output_dir)
+}
+# 5.1 Sauvegarde de la table de données principale
+saveRDS(master_df_historique, file.path(output_dir, "master_df_historique.RDS"))
+# 5.2 Sauvegarde des fonds de carte
+saveRDS(map_com_prepared, file.path(output_dir, "map_com.RDS"))
+# On crée et sauvegarde les fonds de carte agrégés
+map_ept_prepared <- aggregate_map(map_com_prepared, level = "ept")
+saveRDS(map_ept_prepared, file.path(output_dir, "map_ept.RDS"))
+map_dep_prepared <- aggregate_map(map_com_prepared, level = "dep")
+saveRDS(map_dep_prepared, file.path(output_dir, "map_dep.RDS"))
+message(
+"✅ Tous les fichiers ont été sauvegardés dans le dossier '",
+output_dir,
+"'. Le projet est prêt pour l'application Shiny."
+)
+runApp()
+runApp()
+View(master_df_historique)
+runApp()
+shiny::runApp()
+shiny::runApp()
+shiny::runApp()
+shiny::runApp()
+runApp()
+runApp()
+names(master_df_historique)
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE)
+# Librairies pour les manipulations et la gestion des données
+library(dplyr)
+library(sf)
+library(stringr)
+library(readxl)
+# Chargement des fonctions
+source("utils.R")
+# 1.1 Égapro (API data.gouv.fr) ------------------------
+raw_egapro <- import_latest_egapro()
+# 1.2 SIRENE (API Opendatasoft) ------------------------
+raw_sirene <- import_sirene_idf()
+# 1.3 Recensement : bases standard "IC" ----------------
+message("--- Importation Recensement (IC & structure population) ---")
+zip_path_pop_structure   <- "data/raw/base-cc-evol-struct-pop-2021_xlsx.zip"
+zip_path_activite_reside <- "data/raw/base-ic-activite-residents-2021_xlsx (1).zip"
+raw_pop_structure   <- import_xlsx_from_zip(zip_path_pop_structure)
+raw_ic_activite     <- import_xlsx_from_zip(zip_path_activite_reside)
+raw_pop_structure   <- import_xlsx_from_zip(zip_path_pop_structure)
+raw_ic_activite     <- import_xlsx_from_zip(zip_path_activite_reside)
+# 1.4 Recensement : tableau détaillé ACT5 (CSP × sexe) --
+# 1.4 Recensement : tableau détaillé ACT5 (CSP × sexe) -----------------
+zip_path_act5 <- "data/raw/TD_ACT5_2021_xlsx.zip"
+raw_act5 <- import_xlsx_from_zip(zip_path_act5, skip = 9) |>   # 34 923 × 134
+rename_to_com()                                    # clé = com
+# 2.1 Égapro -------------------------------------------
+egapro_prepared <- prepare_egapro_data(raw_egapro)
+# 2.2 SIRENE -------------------------------------------
+sirene_clean <- clean_sirene_data(raw_sirene)
+# 2.3 Indicateurs socio‑démographiques -----------------
+#    —> nouvelle signature avec df_ic et df_act5
+communes_features <- create_socio_features(
+df_pop_structure = raw_pop_structure,
+df_ic            = raw_ic_activite,
+df_act5          = raw_act5
+)
+# communes_features : une ligne par code_commune (75056 inclus)
+paris_row <- communes_features %>% filter(code_commune == "75056")
+# Crée un vecteur des 20 codes arrondissements
+codes_arr <- sprintf("751%02d", 1:20)
+# Duplique la ligne 75056 et remplace code_commune
+paris_arr <- paris_row[rep(1, 20), ] %>%
+mutate(code_commune = codes_arr)
+# Ajoute à la table
+communes_features <- bind_rows(communes_features, paris_arr)
+# 3.1 Chargement du fond de carte des communes
+map_com_prepared <- load_and_prepare_map()
+master_df_historique <- egapro_prepared %>%
+# Jointure avec SIRENE pour la localisation. On ne garde que les entreprises
+# dont le siège social a pu être géolocalisé.
+inner_join(sirene_clean, by = "siren") %>%
+# Jointure avec le fond de carte pour filtrer sur le périmètre géographique
+# et récupérer les informations EPT/DEP propres. On utilise st_drop_geometry
+# pour ne joindre que les attributs, pas les géométries.
+inner_join(
+st_drop_geometry(map_com_prepared),
+by = c("code_commune" = "com_code")
+) %>%
+# Jointure avec les indicateurs socio-démographiques de la commune.
+# On utilise une jointure à gauche au cas où certaines communes manqueraient.
+left_join(communes_features, by = "code_commune")
+message(
+"✅ Table 'master_df_historique' finale créée avec ",
+scales::comma(nrow(master_df_historique)),
+" observations (entreprise-année)."
+)
+# Créer le dossier de destination s'il n'existe pas
+output_dir <- "data_shiny"
+if (!dir.exists(output_dir)) {
+dir.create(output_dir)
+}
+# 5.1 Sauvegarde de la table de données principale
+saveRDS(master_df_historique, file.path(output_dir, "master_df_historique.RDS"))
+# 5.2 Sauvegarde des fonds de carte
+saveRDS(map_com_prepared, file.path(output_dir, "map_com.RDS"))
+# On crée et sauvegarde les fonds de carte agrégés
+map_ept_prepared <- aggregate_map(map_com_prepared, level = "ept")
+saveRDS(map_ept_prepared, file.path(output_dir, "map_ept.RDS"))
+map_dep_prepared <- aggregate_map(map_com_prepared, level = "dep")
+saveRDS(map_dep_prepared, file.path(output_dir, "map_dep.RDS"))
+message(
+"✅ Tous les fichiers ont été sauvegardés dans le dossier '",
+output_dir,
+"'. Le projet est prêt pour l'application Shiny."
+)
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()
+runApp()

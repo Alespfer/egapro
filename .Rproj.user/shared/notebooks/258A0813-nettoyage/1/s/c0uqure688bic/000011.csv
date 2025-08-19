@@ -1,0 +1,16 @@
+"0","library(ggplot2)
+
+ggplot(agg_dept,
+       aes(x = reorder(departement, score_egapro_moyen),
+           y = score_egapro_moyen)) +
+  geom_col(fill = ""#3182bd"") +
+  geom_text(aes(label = round(score_egapro_moyen, 1)),
+            vjust = -0.4, size = 3) +
+  labs(title = ""Score Égapro moyen (pondéré) par département"",
+       x = NULL, y = ""Score moyen"") +
+  theme_minimal(base_size = 12) +
+  coord_cartesian(ylim = c(0, 100)) +
+  coord_flip()
+"
+"2","[38;5;232mCoordinate system already present. Adding new coordinate system, which will replace the existing one.[39m"
+"0",""

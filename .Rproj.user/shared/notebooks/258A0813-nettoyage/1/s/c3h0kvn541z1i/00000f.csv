@@ -1,0 +1,61 @@
+"0","
+# ÉTAPE 2 : CRÉATION DE MASTER_DF_COMMUNAL (qui fonctionnera maintenant)
+# 3. CRÉATION DE MASTER_DF_COMMUNAL (La grande jointure)
+#-------------------------------------------------------
+# On part de notre egapro_clean qui contient toutes les entreprises de France
+master_df_communal <- egapro_clean %>%
+  # Jointure avec la localisation du siège social
+  left_join(sirene_clean, by = ""siren"") %>%
+  
+  # On ne garde que les entreprises pour lesquelles on a trouvé une localisation
+  filter(!is.na(code_commune)) %>%
+  
+  # Jointure avec les caractéristiques de la commune
+  left_join(communes_features, by = ""code_commune"") %>%
+  
+  # On ne garde que les entreprises pour lesquelles on a trouvé des données communales
+  filter(!is.na(part_femmes_actives))
+
+# -- Vérification finale --
+cat(""\n✅ Table master 'master_df_communal' créée avec"", nrow(master_df_communal), ""entreprises.\n\n"")
+"
+"1","
+✅ Table master 'master_df_communal' créée avec"
+"1"," "
+"1","2738"
+"1"," "
+"1","entreprises.
+
+"
+"0","glimpse(master_df_communal)"
+"1","Rows: 2,738"
+"1",""
+"1","
+"
+"1","Columns: 20"
+"1",""
+"1","
+"
+"1","$ siren                 [3m[38;5;246m<chr>[39m[23m ""692039514"", ""483993226"", ""879608438"", ""382151272"", ""803554187"", ""398913699"", ""533373619"", ""562…
+$ raison_sociale        [3m[38;5;246m<chr>[39m[23m ""CHAILLOT-THEATRE NATIONAL DE LA DANSE"", ""SALESFORCE.COM FRANCE"", ""MARGIELA"", ""ANTARGAZ ENERGIE…
+$ tranche_effectifs     [3m[38;5;246m<chr>[39m[23m ""50 à 250"", ""1000 et plus"", ""50 à 250"", ""251 à 999"", ""50 à 250"", ""50 à 250"", ""251 à 999"", ""251 …
+$ region                [3m[38;5;246m<chr>[39m[23m ""Île-de-France"", ""Île-de-France"", ""Île-de-France"", ""Île-de-France"", ""Île-de-France"", ""Île-de-Fr…
+$ departement           [3m[38;5;246m<chr>[39m[23m ""Paris"", ""Paris"", ""Paris"", ""Hauts-de-Seine"", ""Paris"", ""Hauts-de-Seine"", ""Hauts-de-Seine"", ""Val-…
+$ index                 [3m[38;5;246m<dbl>[39m[23m 88, 81, 81, 79, 84, 99, 86, 89, 93, 86, 98, 82, 92, 78, 47, 98, 95, 75, 89, 82, 89, 89, 76, 98,…
+$ note_remuneration     [3m[38;5;246m<dbl>[39m[23m 33, 36, 36, 34, 29, 39, 36, 34, 38, 33, 38, 37, 37, 33, 0, 38, 35, 29, 39, 27, 39, 29, 25, 38, …
+$ note_augmentation     [3m[38;5;246m<dbl>[39m[23m 35, 10, 35, 20, 35, 35, 20, 20, 20, 35, 35, 10, 35, 10, 35, 20, 20, 35, 20, 35, 20, 35, 35, 20,…
+$ note_promotion        [3m[38;5;246m<dbl>[39m[23m [31mNA[39m, 15, [31mNA[39m, 5, [31mNA[39m, [31mNA[39m, 15, 15, 10, [31mNA[39m, [31mNA[39m, 15, [31mNA[39m, 15, [31mNA[39m, 15, 15, [31mNA[39m, 15, [31mNA[39m, 15, [31mNA[39m, [31mNA[39m, 15, …
+$ note_conge_mat        [3m[38;5;246m<dbl>[39m[23m 15, 15, 0, 15, 15, 15, 15, 15, 15, [31mNA[39m, 15, 15, 15, 15, [31mNA[39m, 15, 15, [31mNA[39m, 15, 15, 15, 15, [31mNA[39m, 15, …
+$ note_hautes_rem       [3m[38;5;246m<dbl>[39m[23m 5, 5, 10, 5, 5, 10, 0, 5, 10, 5, 10, 5, 5, 5, 5, 10, 10, 0, 0, 5, 0, 10, 5, 10, 5, 10, 10, 0, 0…
+$ code_commune          [3m[38;5;246m<chr>[39m[23m ""75116"", ""75107"", ""75116"", ""92026"", ""75116"", ""92062"", ""92012"", ""94016"", ""92026"", ""92063"", ""9205…
+$ code_departement.x    [3m[38;5;246m<chr>[39m[23m ""75"", ""75"", ""75"", ""92"", ""75"", ""92"", ""92"", ""94"", ""92"", ""92"", ""92"", ""75"", ""92"", ""75"", ""92"", ""92"",…
+$ longitude             [3m[38;5;246m<dbl>[39m[23m 2.288342, 2.293443, 2.293900, 2.253331, 2.256592, 2.240750, 2.239341, 2.330964, 2.253331, 2.164…
+$ latitude              [3m[38;5;246m<dbl>[39m[23m 48.86290, 48.85636, 48.86837, 48.89227, 48.83985, 48.88929, 48.83662, 48.79865, 48.89227, 48.87…
+$ libelle_commune       [3m[38;5;246m<chr>[39m[23m ""Paris 16e Arrondissement"", ""Paris 7e Arrondissement"", ""Paris 16e Arrondissement"", ""Courbevoie""…
+$ code_departement.y    [3m[38;5;246m<chr>[39m[23m ""75"", ""75"", ""75"", ""92"", ""75"", ""92"", ""92"", ""94"", ""92"", ""92"", ""92"", ""75"", ""92"", ""75"", ""92"", ""92"",…
+$ part_femmes_actives   [3m[38;5;246m<dbl>[39m[23m 52.68290, 51.51381, 52.68290, 50.81384, 52.68290, 49.60863, 51.15809, 50.52706, 50.81384, 50.94…
+$ part_cadres_total     [3m[38;5;246m<dbl>[39m[23m 49.66608, 53.69780, 49.66608, 48.97233, 49.66608, 49.17304, 51.30133, 36.61839, 48.97233, 45.65…
+$ tx_tps_partiel_femmes [3m[38;5;246m<dbl>[39m[23m 15.37939, 13.68034, 15.37939, 11.85213, 15.37939, 12.02274, 12.57100, 16.89214, 11.85213, 13.50…"
+"1",""
+"1","
+"

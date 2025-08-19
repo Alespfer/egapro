@@ -1,0 +1,178 @@
+---
+title: "Rapport de Projet : Conception et Développement du Baromètre de la Parité en Entreprise"
+subtitle: "Analyse des Données Égapro pour les Territoires du Grand Paris"
+author: "Alberto Esperon"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: united
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+## Résumé Exécutif
+
+Ce rapport présente la conception et le développement d'un baromètre interactif dédié à l'analyse de l'égalité professionnelle dans les entreprises du Grand Paris. L'outil, développé avec R et Shiny, exploite les données de l'Index Egapro pour proposer une analyse territoriale des performances d'égalité hommes/femmes. En intégrant des données multi-sources (Égapro, SIRENE, INSEE), le projet analyse environ 16 000 observations d'entreprises sur la période 2018-2024, réparties sur les 12 territoires du Grand Paris. L'application finale, structurée en modules d'analyse spécialisés, offre aux décideurs publics un outil d'aide à la décision fondé sur des données factuelles.
+
+---
+
+## 1. Contexte, Problématique et Objectifs
+
+### 1.1 Contexte Général
+
+Depuis la loi du 5 septembre 2018 "pour la liberté de choisir son avenir professionnel", les entreprises de plus de 50 salariés ont l'obligation de calculer et publier annuellement leur **Index de l'égalité professionnelle (Egapro)**. Cet index, noté sur 100 points, est un instrument clé dans la lutte contre les inégalités socio-économiques entre les femmes et les hommes sur le marché du travail. Il agrège des indicateurs précis tels que les écarts de rémunération, d'augmentations, de promotions, ainsi que la parité dans les plus hautes rémunérations.
+
+Malgré la richesse de ces données publiques, leur exploitation reste souvent limitée, particulièrement dans une perspective d'analyse territoriale. Les outils existants se concentrent principalement sur des vues nationales ou sectorielles, laissant un vide dans la compréhension des dynamiques locales de l'égalité professionnelle.
+
+### 1.2 Problématique et objectifs de l'Outil
+
+La problématique centrale de ce projet est la suivante : **Comment développer un outil d'aide à la décision permettant d'analyser et de comparer les performances d'égalité professionnelle des entreprises à l'échelle des territoires du Grand Paris ?**
+
+Pour y répondre, le **« Baromètre de la Parité en Entreprise »** a été conçu avec quatre objectifs principaux :
+
+1.  **Centraliser et visualiser les données Egapro dans une interface interactive :** Agréger les données de l'index Egapro de milliers d'entreprises pour offrir une vue d'ensemble claire et géolocalisée.
+2.  **Analyser et comparer les performances entre territoires et secteurs d'activité :** Permettre des analyses comparatives entre territoires (Départements, EPT) et secteurs d'activité, tout en gardant une perspective diachronique d'évolutivité dans le temps. 
+3.  **Contextualiser les résultats avec les caractéristiques socio-démographoiques locales :** Mettre en perspective les performances des entreprises avec les caractéristiques socio-démographiques de leur territoire d'implantation pour identifier d'éventuelles corrélations.
+4.  **Faciliter la décision pour les acteurs publics du développement économique territorial :** Fournir aux élus et aux équipes de développement économique un outil d'aide au diagnostic, au pilotage des politiques publiques et à la valorisation des bonnes pratiques.
+
+Le public cible est donc composé des élus locaux, des services de développement économique et des chargés de mission Égalité/RSE des collectivités du Grand Paris. Le périmètre d'étude couvre les 12 territoires de la métropole et les sièges sociaux des entreprises assujetties à l'index entre 2018 et 2024.
+
+
+---
+
+## 2. Démarche Méthodologique et Construction de la Base de Données
+
+La création du baromètre a nécessité une démarche rigoureuse en plusieurs étapes, depuis la collecte des données brutes jusqu'à la constitution d'une base de données exploitable.
+
+### 2.1 Collecte des Données Sources
+
+Plusieurs sources de données ont été mobilisées :
+
+*   **Index Egapro (Ministère du Travail) :** Collecte dynamique via l'API de `data.gouv.fr` pour garantir l'accès aux données les plus à jour.
+*   **Base SIRENE (INSEE) :** Utilisation de l'API d'Opendatasoft pour obtenir la localisation (coordonnées GPS du siège social) et le secteur d'activité (code NAF) de chaque entreprise.
+*   **Recensement de la Population 2021 (INSEE) :** Utilisation des fichiers détaillés (`base "Activité des résidents"`, `TD_ACT5`) pour construire des indicateurs socio-démographiques à l'échelle communale.
+*   **Données Géographiques (OpenDataSoft) :** Récupération des fonds de carte administratifs pour les représentations cartographiques.
+
+### 2.2 Chaîne de Traitement et d'Enrichissement des Données
+
+La constitution d'une base de données exploitable a nécessité un pipeline de traitement, orchestré par un script R Markdown (`data_preparation.Rmd`) qui s'appuie sur un ensemble de fonctions personnalisées (`utils.R`). Ce processus se décompose en quatre étapes majeures :
+
+
+1.  **Nettoyage des Données Egapro :** Standardisation des noms de colonnes, conversion des types, gestion des valeurs manquantes et non calculables ("NC").
+2.  **Filtrage des Données SIRENE :** Seuls les sièges sociaux localisés en Île-de-France et appartenant à des entreprises de plus de 50 salariés ont été conservés pour correspondre au périmètre de l'Index Égapro.
+3.  **Calcul des Indicateurs Socio-démographiques :** Les données brutes de l'INSEE ont été agrégées au niveau communal pour créer des indicateurs pertinents.
+4.  **Jointure et Création de la Table Master :** L'ensemble des données a été fusionné en une table unique (`master_df_historique`). Le résultat est une table unique, riche, où chaque ligne représente une entreprise pour une année donnée, avec son score Égapro, sa localisation, son secteur, et les caractéristiques de son territoire. C'est cette table qui alimente l'ensemble de l'application Shiny.
+
+
+### 2.3 Choix Méthodologiques Structurants
+
+Plusieurs décisions méthodologiques ont été prises pour assurer la robustesse de l'outil :
+
+*   **Pondération des Scores :** Pour que les moyennes territoriales ou sectorielles ne soient pas biaisées par une multitude de petites entreprises, les scores Égapro ont été pondérés par la taille des entreprises. Les poids utilisés sont le point-milieu des tranches d'effectifs (`150` pour "50-250", `625` pour "251-999"). Pour la tranche ouverte "1000 et plus", un poids forfaitaire de `1500` a été retenu, correspondant au point-milieu de la première sous-catégorie de données disponibles ("1000-1999 salariés"). Ce choix est une estimation conservative qui évite de donner un poids disproportionné aux très grands groupes.
+
+*   **Gestion du Cas de Paris :** Les entreprises parisiennes sont souvent localisées par leur code d'arrondissement (`751xx`) dans SIRENE. Pour assurer une jointure correcte avec les données socio-démographiques et géographiques qui sont à l'échelle de la commune de Paris (`75056`), une étape d'harmonisation a été intégrée au script de préparation. Tous les codes `751xx` ont été ramenés au code `75056` avant les jointures, garantissant ainsi que toutes les entreprises parisiennes sont correctement rattachées au niveau d'analyse souhaité ("Ville de Paris"). 
+
+*   **Maille d'Analyse :** L'analyse agrégée privilégie l'échelle des **Établissements Publics Territoriaux (EPT)** plutôt que la commune. Ce choix assure un nombre d'entreprises suffisant dans chaque polygone pour que les moyennes calculées soient statistiquement significatives et visuellement pertinentes.
+
+---
+
+## 3. L'Application Shiny : Fonctionnalités et Guide d'Utilisation
+
+L'application a été développée avec le framework Shiny en R. Une attention particulière a été portée à l'ergonomie, à la clarté visuelle et à l'accessibilité. 
+
+### 3.1 Structure de l'Application
+
+L'outil est organisé en quatre onglets analytiques et un onglet de documentation :
+
+*   **Carte & Territoires :** Cet onglet offre une vue géographique de la situation. L'utilisateur peut visualiser la performance moyenne des territoires (EPT ou départements) sur une carte choroplèthe, et explorer la localisation précise des entreprises. De multiples filtres (année, secteur, taille, score) permettent d'affiner l'analyse.
+*   **Analyse Sectorielle :** Cet onglet permet d'identifier les secteurs d'activité les plus et les moins performants. Un graphique en "lollipops" met en évidence la médiane des scores par secteur, offrant une vue complémentaire à la moyenne.
+*   **Socio-démographique :** Cet onglet a une vocation plus exploratoire. Il permet de croiser le score Égapro moyen d'un territoire avec une variable socio-économique de son choix, afin de visualiser d'éventuelles corrélations. Une bannière colorée indique la force et la significativité statistique de la corrélation de Pearson.
+*   **Historique & Évolutions :** Cet onglet permet d'analyser les dynamiques temporelles. Un graphique en lignes suit l'évolution du score moyen pour les territoires sélectionnés sur plusieurs années, et un indicateur clé (KPI) calcule la progression moyenne sur la période.
+
+### 3.2 Parcours utilisateur : ergonomie et interface
+
+En cohérence avec les critères évoqués lors de la phase de cadrage, plusieurs décisions ont été prises afin de renforcer l'ergonomie du parcours utilisateur : 
+
+*   **Accessibilité :** Dans le cadre du Référentiel général d'amélioration de l'accessibilité, un bouton "Palette accessible" a été ajouté pour basculer vers une palette de couleurs optimisée pour les personnes daltoniennes. 
+*   **Clarté :** La documentation intégrée et le présent rapport ont été enrichis pour expliquer en détail les choix méthodologiques.
+*   **Interface :** Une feuille de style CSS personnalisée a été développée pour améliorer l'expérience utilisateur, la hiérarchie visuelle et l'esthétique générale de l'outil.
+
+---
+
+## 4. Principaux Résultats et Enseignements
+
+L'exploitation du baromètre sur la base de données constituée permet de dégager plusieurs enseignements clés sur l'état et les dynamiques de l'égalité professionnelle dans le Grand Paris.
+
+### 4.1 Un Jeu de Données Riche et Représentatif
+
+L'analyse porte sur une base de données robuste de **16 238 observations** (entreprise-année) couvrant la période 2018-2024. L'ensemble des 12 territoires du Grand Paris est représenté, tout comme les 20 grands secteurs d'activité de la nomenclature NAF.
+
+Une observation structurante est la **forte concentration des déclarations à Paris intra-muros**, qui rassemble la plupart des observations. Ce constat est le reflet logique de la réalité économique et de **l'effet "siège social"** : de nombreuses grandes entreprises nationales, dont l'activité est répartie sur tout le territoire français, déclarent leur Index Egapro depuis leur siège parisien. Paris (et, dans une moindre mesure, l'ouest de la Défense) agit donc comme le principal "poids lourd" statistique des entreprises déclarantes de la région.
+
+### 4.2 Une Progression Globale 
+
+L'analyse diachronique révèle une **tendance globalement positive**, avec une progression quasi généralisée des scores moyens dans tous les territoires depuis l'instauration de l'index. Cela suggère un effet d'entraînement et une prise de conscience progressive de la part des entreprises. Le nombre croissant d'organisations déclarantes, révèle l'impact de la réglementation dans la prise en compte de cet enjeu sociétal.
+
+
+### 4.3 Des Dynamiques Sectorielles très Marquées
+
+L'analyse par secteur d'activité confirme que la performance en matière d'égalité professionnelle n'est pas homogène :
+
+*   **Les secteurs les plus performants** sont systématiquement ceux de **l'Administration publique**, les **Activités immobilières** et **l'hébergement et restauration** avec des scores médians qui dépassent les 90 points.
+*   À l'opposé, les secteurs de la **Construction** et de certaines branches de l'**Industrie manufacturière** affichent des marges de progression plus importantes, avec des scores médians souvent proches du seuil légal de vigilance situé au 85 points.
+
+### 4.4 Des Corrélations Socio-démographiques à développer
+
+
+L'outil propose de mettre en évidence des liens statistiques exploratoires entre la composition sociodémographique des territoires et la performance en matière d'égalité professionnelle des organisations en son sein. L'hypothèse de départ nous menait à une interrogation sur les possibles tendances de corrélation entre la précarité de la population féminine locale et des performances plus pauvres en termes d'égalité professionnelle.
+
+Néanmoins, contrairement à ce que nous aurions pu croire initialement, les hausses des scores moyens de l'index se sont confirmées dans toutes les unités territoriales analysées, indépendamment de leur structure sociodémographique de base. Ce résultat contre-intuitif suggère que les **intenses dynamiques de mobilité professionnelle** en Île-de-France et l'effet "siège social" priment sur les caractéristiques de la population résidente locale. La performance d'une entreprise semble donc moins liée à son environnement social immédiat qu'à ses politiques internes et à son secteur d'activité.
+
+
+### 4.5 Limites et Points de Vigilance
+
+Pour une interprétation rigoureuse de l'outil proposé, plusieurs limites doivent être considérées :
+
+*   **Biais de déclaration :** L'analyse repose sur les données déclarées par les entreprises, qui peuvent comporter des biais (sous-déclaration, hétérogénéité des calculs). Bien que la couverture de l'index s'améliore avec le temps (80% des entreprises concernées ayant effectué leurs déclarations en 2025), une part non négligeable d'entreprises reste non-déclarante.
+*   **Périmètre de l'analyse :** Le choix de se concentrer sur les sièges sociaux (via le SIREN) offre une vision de la performance globale de l'entreprise, mais ne permet pas d'analyser d'éventuelles dynamiques différentielles entre les établissements (SIRET) d'une même organisation. 
+*   **Prudence interprétative :** L'apparition d'une corrélation ne représente pas nécessairement une causalité entre les variables analysées. Les liens statistiques observés invitent à l'exploration mais pas à des conclusions définitives dans l'état actuel du travail. Les indicateurs de significativité obtenus (p-value) ne sont pas toujours robustes, notamment en raison de la complexité des dynamiques de mobilité professionnelle déjà évoquées. 
+
+Ainsi, bien que cohérents du point de vue fonctionnel et économique (avec une certaine corrélation avec les bassins d'emplois du Grand Paris), les EPT ne nous ont pas permis de dégager des corrélations claires entre les compositions sociodémographiques des mailles et les scores Egapro des entreprises. Cela nécessiterait une exploration plus approfondie pour des analyses ultérieures.
+*   **Portée de l'Index :** L'Index Egapro, bien que puissant, ne mesure qu'une partie des enjeux de l'égalité professionnelle. Il ne couvre pas, par exemple, les questions de temps partiel subi ou d'articulation des temps de vie. Bien que pertinent pour l'action publique sur les écarts économiques existants, d'autres formes de discrimination ne sont pas abordées dans cette étude. 
+*   **Scalabilité :** D'un point de vue technique, la scalabilité reste limitée pour d'autres régions sans adaptation substantielle du code. La dépendance aux APIs externes (data.gouv.fr, OpenDataSoft) constitue un risque opérationnel, et la mise à jour des données nécessite actuellement une intervention manuelle.
+
+---
+
+### 4.6 Perspectives d'Évolution
+
+Ce projet ouvre plusieurs pistes de développement :
+
+*   **Déploiement et réplication :** L'objectif prioritaire est le déploiement opérationnel auprès des collectivités du Grand Paris. Une réplication du modèle sur l'ensemble des territoires franciliens, voire sur d'autres métropoles, est techniquement envisageable et permettrait de constituer un réseau d'observatoires.
+*   **Évolution fonctionnelle :** L'outil pourrait être enrichi par l'intégration de nouvelles variables (données sur la formation, l'entrepreneuriat féminin) pour devenir une plateforme d'observation encore plus complète.
+*   **Automatisation :** Une perspective technique serait d'automatiser entièrement la chaîne de mise à jour des données pour garantir un suivi en temps quasi réel.
+
+
+## 5. Conclusion Générale
+
+
+Ce projet a permis de répondre à une problématique concrète : transformer les données brutes de l'Index Egapro en un outil de pilotage stratégique pour les acteurs publics du Grand Paris. Le développement du **"Baromètre de la Parité en Entreprise"** démontre la valeur ajoutée de l'analyse de données territoriales appliquée aux politiques d'égalité professionnelle, et illustre le potentiel des technologies open-source comme R et Shiny pour l'aide à la décision publique.
+
+Grâce à une démarche méthodologique réfléchie, de l'intégration de sources de données hétérogènes à la construction d'une interface accessible et intuitive, cet outil offre une compréhension fine des dynamiques locales. Il permet de poser un diagnostic, de comparer les territoires et les secteurs, et d'ouvrir de nouvelles perspectives pour l'action publique.
+
+Potentiellement, l'objectif du projet pourrais être d'expolorer son potentiel de réplication sur d'autres territoires pour constituer, à terme, un véritable réseau d'observatoires de la parité en entreprise.
+
+---
+
+## 6. Lien vers l'Application Déployée
+
+L'application est accessible en ligne. Il est recommandé de la consulter sur un écran d'ordinateur pour une expérience optimale.
+
+**[Cliquez ici pour accéder au Baromètre de la Parité en Entreprise](http://alespfer.shinyapps.io/barometre-parite-paris)**
+

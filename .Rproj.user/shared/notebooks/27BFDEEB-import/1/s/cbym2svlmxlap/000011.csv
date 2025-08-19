@@ -1,0 +1,55 @@
+"0","tryCatch({
+  # On exécute la fonction
+  egapro_data <- import_latest_egapro()
+  
+  # On vérifie le résultat
+  if (exists(""egapro_data"") && is.data.frame(egapro_data) && nrow(egapro_data) > 0) {
+    message(""\n[✓] TEST RÉUSSI : import_latest_egapro() a retourné un dataframe."")
+    glimpse(egapro_data)
+  } else {
+    message(""\n[✗] TEST ÉCHOUÉ : La fonction n'a pas retourné de dataframe valide."")
+  }
+}, error = function(e) {
+  message(""\n[✗] TEST ÉCHOUÉ avec une erreur : "", e$message)
+})
+"
+"2","--- Importation des données Égapro depuis data.gouv.fr ---
+"
+"2","-> Dataset trouvé : 'Index Egalité Professionnelle F/H des entreprises de 50 salariés ou plus' (modifié le 2025-04-25T15:26:12.373000+00:00)
+"
+"2","-> Téléchargement de la ressource au format 'xlsx'...
+"
+"2","✅ Import Égapro terminé : 182587 lignes et 18 colonnes.
+"
+"2","
+[✓] TEST RÉUSSI : import_latest_egapro() a retourné un dataframe.
+"
+"1","Rows: 182,587"
+"1",""
+"1","
+"
+"1","Columns: 18"
+"1",""
+"1","
+"
+"1","$ Année                                             [3m[38;5;246m<dbl>[39m[23m 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024, 2…
+$ Structure                                         [3m[38;5;246m<chr>[39m[23m ""Entreprise"", ""Entreprise"", ""Entreprise"", ""Entreprise"", ""Entreprise…
+$ `Tranche d'effectifs`                             [3m[38;5;246m<chr>[39m[23m ""50 à 250"", ""50 à 250"", ""50 à 250"", ""50 à 250"", ""50 à 250"", ""50 à 2…
+$ SIREN                                             [3m[38;5;246m<chr>[39m[23m ""808698880"", ""438586141"", ""420979452"", ""310850094"", ""433392040"", ""7…
+$ `Raison Sociale`                                  [3m[38;5;246m<chr>[39m[23m ""SOCIETE NOUVELLE PRADEAU MORIN"", ""BENAVEN TRAVAUX BATIMENT"", ""JMRP…
+$ `Nom UES`                                         [3m[38;5;246m<chr>[39m[23m [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m,…
+$ `Entreprises UES (SIREN)`                         [3m[38;5;246m<chr>[39m[23m [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m,…
+$ Région                                            [3m[38;5;246m<chr>[39m[23m ""Île-de-France"", ""La Réunion"", ""Normandie"", ""La Réunion"", ""Hauts-de…
+$ Département                                       [3m[38;5;246m<chr>[39m[23m ""Hauts-de-Seine"", ""La Réunion"", ""Eure"", ""La Réunion"", ""Oise"", ""Arde…
+$ Pays                                              [3m[38;5;246m<chr>[39m[23m ""FRANCE"", ""FRANCE"", ""FRANCE"", ""FRANCE"", ""FRANCE"", ""FRANCE"", ""FRANCE…
+$ `Code NAF`                                        [3m[38;5;246m<chr>[39m[23m ""41.20B - Construction d'autres bâtiments"", ""41.20B - Construction …
+$ `Note Ecart rémunération`                         [3m[38;5;246m<chr>[39m[23m ""NC"", ""NC"", ""NC"", ""40"", ""36"", ""NC"", ""NC"", ""35"", ""27"", ""39"", ""39"", ""…
+$ `Note Ecart taux d'augmentation (hors promotion)` [3m[38;5;246m<chr>[39m[23m [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, ""20"", ""20"", [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m,…
+$ `Note Ecart taux de promotion`                    [3m[38;5;246m<chr>[39m[23m [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, ""15"", ""15"", [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m, [31mNA[39m,…
+$ `Note Ecart taux d'augmentation`                  [3m[38;5;246m<chr>[39m[23m ""35"", ""NC"", ""35"", ""35"", ""35"", ""35"", ""NC"", ""35"", ""NC"", [31mNA[39m, [31mNA[39m, ""35"",…
+$ `Note Retour congé maternité`                     [3m[38;5;246m<chr>[39m[23m ""NC"", ""NC"", ""15"", ""NC"", ""NC"", ""NC"", ""NC"", ""15"", ""0"", ""15"", ""15"", ""N…
+$ `Note Hautes rémunérations`                       [3m[38;5;246m<chr>[39m[23m ""0"", ""5"", ""0"", ""0"", ""5"", ""0"", ""10"", ""0"", ""0"", ""5"", ""0"", ""5"", ""0"", ""…
+$ `Note Index`                                      [3m[38;5;246m<chr>[39m[23m ""NC"", ""NC"", ""NC"", ""88"", ""89"", ""NC"", ""NC"", ""85"", ""NC"", ""94"", ""89"", ""…"
+"1",""
+"1","
+"

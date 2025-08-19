@@ -1,0 +1,10 @@
+"0","# Fonds de carte des Départements (agrégation)
+map_dep <- map_com %>% 
+  group_by(dep_code, dep_name) %>%
+  summarise(geometry = st_union(geometry))
+"
+"2","`summarise()` has grouped output by 'dep_code'. You can override using the `.groups` argument."
+"0","saveRDS(map_dep, ""data/map_dep.RDS"")"
+"0","cat(""✅ Fonds de carte départemental sauvegardé.\n"")"
+"1","✅ Fonds de carte départemental sauvegardé.
+"

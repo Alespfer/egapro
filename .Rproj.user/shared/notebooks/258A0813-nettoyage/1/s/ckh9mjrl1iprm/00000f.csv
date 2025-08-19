@@ -1,0 +1,44 @@
+"0","## 1️⃣  Petite couronne (75-92-93-94) ------------------------------
+master_petite_couronne <- master_df_communal |>
+  filter(code_departement.x %in% c(""75"",""92"",""93"",""94""))
+
+cat(""✔︎ n ="", nrow(master_petite_couronne), ""entreprises ⤵︎\n"")
+"
+"1","✔︎ n ="
+"1"," "
+"1","2737"
+"1"," "
+"1","entreprises ⤵︎
+"
+"0","dplyr::glimpse(master_petite_couronne, width = 80)"
+"1","Rows: 2,737"
+"1",""
+"1","
+"
+"1","Columns: 20"
+"1",""
+"1","
+"
+"1","$ siren                 [3m[38;5;246m<chr>[39m[23m ""692039514"", ""483993226"", ""879608438"", ""38215127…
+$ raison_sociale        [3m[38;5;246m<chr>[39m[23m ""CHAILLOT-THEATRE NATIONAL DE LA DANSE"", ""SALESF…
+$ tranche_effectifs     [3m[38;5;246m<chr>[39m[23m ""50 à 250"", ""1000 et plus"", ""50 à 250"", ""251 à 9…
+$ region                [3m[38;5;246m<chr>[39m[23m ""Île-de-France"", ""Île-de-France"", ""Île-de-France…
+$ departement           [3m[38;5;246m<chr>[39m[23m ""Paris"", ""Paris"", ""Paris"", ""Hauts-de-Seine"", ""Pa…
+$ index                 [3m[38;5;246m<dbl>[39m[23m 88, 81, 81, 79, 84, 99, 86, 89, 93, 86, 98, 82, …
+$ note_remuneration     [3m[38;5;246m<dbl>[39m[23m 33, 36, 36, 34, 29, 39, 36, 34, 38, 33, 38, 37, …
+$ note_augmentation     [3m[38;5;246m<dbl>[39m[23m 35, 10, 35, 20, 35, 35, 20, 20, 20, 35, 35, 10, …
+$ note_promotion        [3m[38;5;246m<dbl>[39m[23m [31mNA[39m, 15, [31mNA[39m, 5, [31mNA[39m, [31mNA[39m, 15, 15, 10, [31mNA[39m, [31mNA[39m, 15, [31mN[39m…
+$ note_conge_mat        [3m[38;5;246m<dbl>[39m[23m 15, 15, 0, 15, 15, 15, 15, 15, 15, [31mNA[39m, 15, 15, 1…
+$ note_hautes_rem       [3m[38;5;246m<dbl>[39m[23m 5, 5, 10, 5, 5, 10, 0, 5, 10, 5, 10, 5, 5, 5, 5,…
+$ code_commune          [3m[38;5;246m<chr>[39m[23m ""75116"", ""75107"", ""75116"", ""92026"", ""75116"", ""92…
+$ code_departement.x    [3m[38;5;246m<chr>[39m[23m ""75"", ""75"", ""75"", ""92"", ""75"", ""92"", ""92"", ""94"", …
+$ longitude             [3m[38;5;246m<dbl>[39m[23m 2.288342, 2.293443, 2.293900, 2.253331, 2.256592…
+$ latitude              [3m[38;5;246m<dbl>[39m[23m 48.86290, 48.85636, 48.86837, 48.89227, 48.83985…
+$ libelle_commune       [3m[38;5;246m<chr>[39m[23m ""Paris 16e Arrondissement"", ""Paris 7e Arrondisse…
+$ code_departement.y    [3m[38;5;246m<chr>[39m[23m ""75"", ""75"", ""75"", ""92"", ""75"", ""92"", ""92"", ""94"", …
+$ part_femmes_actives   [3m[38;5;246m<dbl>[39m[23m 52.68290, 51.51381, 52.68290, 50.81384, 52.68290…
+$ part_cadres_total     [3m[38;5;246m<dbl>[39m[23m 49.66608, 53.69780, 49.66608, 48.97233, 49.66608…
+$ tx_tps_partiel_femmes [3m[38;5;246m<dbl>[39m[23m 15.37939, 13.68034, 15.37939, 11.85213, 15.37939…"
+"1",""
+"1","
+"

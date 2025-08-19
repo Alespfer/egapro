@@ -1,0 +1,18 @@
+"0","# 2.1 Préparation des données Égapro"
+"0","egapro_prepared <- prepare_egapro_data(raw_egapro)"
+"2","--- Préparation des données Égapro ---
+"
+"2","✅ Préparation Égapro OK : 110050 observations.
+"
+"0","# 2.2 Nettoyage des données SIRENE pour isoler les sièges sociaux"
+"0","sirene_clean <- clean_sirene_data(raw_sirene)"
+"2","--- Nettoyage des données SIRENE ---
+"
+"2","✅ Nettoyage SIRENE OK : 10440 sièges sociaux uniques géolocalisés.
+"
+"0","# 2.3 Calcul des indicateurs socio-démographiques par commune"
+"0","communes_features <- create_communes_features(raw_actres)"
+"2","--- Création des indicateurs communaux (socio-démo) ---
+"
+"2","✅ Indicateurs créés pour 34970 communes.
+"

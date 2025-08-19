@@ -1,0 +1,16 @@
+"0","# URL directe vers un fichier CSV fiable de data.gouv.fr
+url_ref_ept <- ""https://www.data.gouv.fr/fr/datasets/r/e8f70933-2068-42WN-9E50-52A562D85542""
+
+# On importe ce fichier et on le nettoie pour nos besoins
+table_correspondance_ept <- read_csv(url_ref_ept) %>%
+  # On sélectionne les colonnes qui nous intéressent
+  select(
+    code_commune = CODGEO, 
+    nom_epci = LIBEPCI
+  ) %>%
+  # On s'assure que les codes communes sont bien du texte pour la jointure
+  mutate(code_commune = as.character(code_commune))
+"
+"2","Warning: Failed to open 'https://www.data.gouv.fr/fr/datasets/r/e8f70933-2068-42WN-9E50-52A562D85542': The requested URL returned error: 404"
+"2","Error in open.connection(3L, ""rb"") : cannot open the connection
+"
