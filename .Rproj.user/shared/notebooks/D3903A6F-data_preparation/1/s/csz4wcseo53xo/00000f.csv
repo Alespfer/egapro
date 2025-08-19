@@ -1,6 +1,0 @@
-"0","# 3.1 Chargement du fond de carte des communes"
-"0","map_com_prepared <- load_and_prepare_map()"
-"2","--- Chargement et préparation du fond de carte ---
-"
-"2","✅ Fond de carte communal OK : 143 communes.
-"

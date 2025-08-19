@@ -1,5 +1,0 @@
-"0","saveRDS(agg_dep, ""data/agg_dep.RDS"")
-cat(""✅ Données agrégées par département sauvegardées.\n"")
-"
-"1","✅ Données agrégées par département sauvegardées.
-"

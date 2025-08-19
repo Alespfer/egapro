@@ -158,14 +158,19 @@ prepare_egapro_data <- function(raw_egapro_df) {
   df_clean <- raw_egapro_df %>% janitor::clean_names()
   
   naf_col <- intersect(c("code_naf", "code_naf_ape"), names(df_clean))[1]
-  effectifs_col <- intersect(c("tranche_deffectifs", "tranche_d_effectifs"), names(df_clean))[1]
+  effectifs_col <- intersect(c("tranche_deffectifs", "tranche_d_effectifs", "tranche_effectifs"), names(df_clean))[1]
   if (is.na(naf_col) || is.na(effectifs_col)) stop("Colonnes NAF ou effectifs introuvables.")
   
   cols_aug_existantes <- intersect(c("note_ecart_taux_daugmentation_hors_promotion", "note_ecart_taux_daugmentation"), names(df_clean))
   
   df_prepared <- df_clean %>%
     mutate(
-      across(starts_with("note"), ~as.numeric(na_if(.x, "NC"))),
+      # --- LIGNE DE SÉCURITÉ ULTIME ---
+      # 1. On force toutes les colonnes 'note' en type caractère.
+      # 2. Ensuite, on convertit en numérique. Cela élimine TOUTE ambiguïté de type.
+      across(starts_with("note"), as.character),
+      across(starts_with("note"), as.numeric),
+      
       siren = str_pad(siren, 9, side = "left", pad = "0"),
       annee = as.integer(annee)
     )
