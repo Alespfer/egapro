@@ -16,18 +16,18 @@ historique_server <- function(id, master_df_historique, palette_accessible) {
       shiny::req(input$filtre_ept_historique)
       df_base <- master_df_historique
       if (input$filtre_taille_historique != "Toutes les tailles") {
-        df_base <- df_base |> dplyr::filter(tranche_effectifs == input$filtre_taille_historique)
+        df_base <- df_base %>% dplyr::filter(tranche_effectifs == input$filtre_taille_historique)
       }
-      df_base |> 
-        dplyr::filter(ept_name %in% input$filtre_ept_historique) |>
-        dplyr::group_by(annee, ept_name) |>
-        dplyr::summarise(score_moyen = weighted.mean(index, poids, na.rm = TRUE), .groups = "drop") |>
+      df_base %>% 
+        dplyr::filter(ept_name %in% input$filtre_ept_historique) %>%
+        dplyr::group_by(annee, ept_name) %>% 
+        dplyr::summarise(score_moyen = weighted.mean(index, poids, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(ept_name, annee)
     })
     output$kpi_historique_ui <- shiny::renderUI({
       df <- data_historique_agg(); shiny::req(nrow(df) > 1)
       annee_debut <- min(df$annee); annee_fin <- max(df$annee)
-      progression_df <- df |> dplyr::group_by(ept_name) |> dplyr::summarise(score_start = score_moyen[annee == annee_debut], score_end = score_moyen[annee == annee_fin], .groups = "drop") |> dplyr::filter(!is.na(score_start) & !is.na(score_end))
+      progression_df <- df %>% dplyr::group_by(ept_name) %>% dplyr::summarise(score_start = score_moyen[annee == annee_debut], score_end = score_moyen[annee == annee_fin], .groups = "drop") %>% dplyr::filter(!is.na(score_start) & !is.na(score_end))
       if (nrow(progression_df) == 0) return(shiny::tags$div(class="alert alert-warning", "Données insuffisantes pour calculer la progression."))
       mean_progression <- mean(progression_df$score_end - progression_df$score_start, na.rm = TRUE)
       progression_texte <- sprintf("%+.1f", mean_progression)
@@ -44,7 +44,7 @@ historique_server <- function(id, master_df_historique, palette_accessible) {
         shiny::showNotification("Veuillez sélectionner au moins un territoire.", type = "message", duration = 5)
         return(NULL)
       }
-      df_plot_with_tooltip <- df_plot |>
+      df_plot_with_tooltip <- df_plot %>%
         dplyr::mutate(tooltip_text = paste0("<b>Territoire:</b> ", as.character(ept_name), "<br><b>Année:</b> ", annee, "<br><b>Score:</b> ", round(score_moyen, 2)))
       palette_a_utiliser <- if (isTRUE(input$color_switch_historique)) {
         palette_accessible[seq_len(dplyr::n_distinct(df_plot_with_tooltip$ept_name))]
@@ -53,18 +53,18 @@ historique_server <- function(id, master_df_historique, palette_accessible) {
           RColorBrewer::brewer.pal(max(3, dplyr::n_distinct(df_plot_with_tooltip$ept_name)), "Set1")
         )[seq_len(dplyr::n_distinct(df_plot_with_tooltip$ept_name))]
       }
-      plotly::plot_ly(data = df_plot_with_tooltip, x = ~annee, y = ~score_moyen, color = ~ept_name, colors = palette_a_utiliser, type = 'scatter', mode = 'lines+markers', text = ~tooltip_text, hoverinfo = 'text') |>
+      plotly::plot_ly(data = df_plot_with_tooltip, x = ~annee, y = ~score_moyen, color = ~ept_name, colors = palette_a_utiliser, type = 'scatter', mode = 'lines+markers', text = ~tooltip_text, hoverinfo = 'text') %>%
         plotly::layout(title = list(text = "Évolution Comparée des Scores Egapro", x = 0.5),
                        xaxis = list(title = "Année"), yaxis = list(title = "Score Egapro moyen pondéré"),
-                       legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2)) |>
+                       legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2)) %>%
         plotly::config(displayModeBar = FALSE)
     })
     output$table_historique <- DT::renderDataTable({
       df <- data_historique_agg(); if (nrow(df) == 0) return(DT::datatable(data.frame(Message = "Aucune donnée disponible"), options = list(dom = 't')))
-      df_table <- df |> dplyr::select(Territoire = ept_name, Année = annee, `Score Moyen` = score_moyen) |> tidyr::pivot_wider(names_from = Année, values_from = `Score Moyen`)
-      df_table |>
+      df_table <- df %>% dplyr::select(Territoire = ept_name, Année = annee, `Score Moyen` = score_moyen) %>% tidyr::pivot_wider(names_from = Année, values_from = `Score Moyen`)
+      df_table %>%
         DT::datatable(rownames = FALSE, extensions = 'Buttons', options = list(dom = 'Bfrtip', ordering = FALSE, buttons = list('copy', 'csv', 'excel'), language = list(url = '//cdn.datatables.net/plug-ins/1.13.4/i18n/fr-FR.json')),
-                      caption = htmltools::tags$caption(style = 'caption-side: top; text-align: left; color: #333; font-size: 1.2em; font-weight: bold;', 'Données détaillées')) |>
+                      caption = htmltools::tags$caption(style = 'caption-side: top; text-align: left; color: #333; font-size: 1.2em; font-weight: bold;', 'Données détaillées')) %>%
         DT::formatRound(columns = which(sapply(df_table, is.numeric)), digits = 2)
     })
   })

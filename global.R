@@ -26,9 +26,14 @@ library(viridis)
 library(shinydashboard)
 
 # ------------------------------------------------------------------------------
-# 2. Chargement des sources (fonctions, modules, documentation)
+# 2. Chargement des sources (AVEC LE BON CHEMIN)
 # ------------------------------------------------------------------------------
-
+source("R/utils.R", local = TRUE)
+source("R/documentation.R", local = TRUE) 
+source("R/carte_module.R", local = TRUE)
+source("R/sectoriel_module.R", local = TRUE)
+source("R/socio_dem_module.R", local = TRUE)
+source("R/historique_module.R", local = TRUE)
 
 # ------------------------------------------------------------------------------
 # 3. Données et objets globaux
@@ -44,8 +49,8 @@ map_ept <- readRDS("data_shiny/map_ept.RDS")
 map_dep <- readRDS("data_shiny/map_dep.RDS")
 
 # -- Pré-calculs --
-map_ept <- st_transform(map_ept, crs = 4326)
-map_dep <- st_transform(map_dep, crs = 4326)
+map_ept <- sf::st_transform(map_ept, crs = 4326)
+map_dep <- sf::st_transform(map_dep, crs = 4326)
 eff_key <- c("50 à 250" = 150, "251 à 999" = 625, "1000 et plus" = 1500)
 master_df_historique <- master_df_historique |>
   dplyr::mutate(poids = unname(eff_key[tranche_effectifs]))

@@ -19,13 +19,13 @@ socio_dem_ui <- function(id, df) {
 socio_dem_server <- function(id, master_df_historique, socio_variable_labels) {
   shiny::moduleServer(id, function(input, output, session) {
     data_sd <- shiny::reactive({
-      master_df_historique |>
+      master_df_historique %>%
         dplyr::filter(
           annee == input$filtre_annee_socio,
           if (length(input$filtre_ept_sd) > 0)
             ept_name %in% input$filtre_ept_sd else TRUE
-        ) |>
-        dplyr::group_by(ept_name) |>
+        ) %>%
+        dplyr::group_by(ept_name) %>%
         dplyr::summarise(
           score_moyen = weighted.mean(index, poids, na.rm = TRUE),
           socio_val   = mean(.data[[input$socio_variable]], na.rm = TRUE),
@@ -64,15 +64,15 @@ socio_dem_server <- function(id, master_df_historique, socio_variable_labels) {
                  paste0("Corrélation de Pearson : ", r, " (p-value = ", formatC(p, digits = 3, format = "f"), "). Tendance ", tendance, "."))
     })
     output$table_sd <- DT::renderDT({
-      master_df_historique |>
-        dplyr::filter(annee == input$filtre_annee_socio, if (length(input$filtre_ept_sd) > 0) ept_name %in% input$filtre_ept_sd else TRUE) |>
+      master_df_historique %>%
+        dplyr::filter(annee == input$filtre_annee_socio, if (length(input$filtre_ept_sd) > 0) ept_name %in% input$filtre_ept_sd else TRUE) %>%
         dplyr::summarise(
           `Taux activité F` = mean(taux_activite_femmes, na.rm = TRUE),
           `Femmes cadres` = mean(part_femmes_cadres, na.rm = TRUE),
           `Femmes prof. inter.` = mean(part_femmes_prof_inter, na.rm = TRUE),
-          `Taux féminisation cadres` = mean(taux_femmes_parmi_cadres,  na.rm = TRUE), .groups = "drop") |>
-        tidyr::pivot_longer(everything(), names_to  = "Indicateur", values_to = "Valeur") |>
-        dplyr::mutate(Valeur = sprintf("%.1f %%", Valeur)) |>
+          `Taux féminisation cadres` = mean(taux_femmes_parmi_cadres,  na.rm = TRUE), .groups = "drop") %>%
+        tidyr::pivot_longer(everything(), names_to  = "Indicateur", values_to = "Valeur") %>%
+        dplyr::mutate(Valeur = sprintf("%.1f %%", Valeur)) %>%
         DT::datatable(options = list(dom = "t"), rownames = FALSE)
     })
     output$alert_paris_sd <- shiny::renderUI({

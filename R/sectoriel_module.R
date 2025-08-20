@@ -21,23 +21,23 @@ sectoriel_ui <- function(id, df) {
 sectoriel_server <- function(id, master_df_historique, palette_accessible) {
   shiny::moduleServer(id, function(input, output, session) {
     data_secteur_filtree <- shiny::reactive({
-      df <- master_df_historique |>
+      df <- master_df_historique %>%
         dplyr::filter(annee == input$filtre_annee_secteur, !is.na(secteur_activite))
       if (input$filtre_taille_secteur != "Toutes les tailles") {
-        df <- df |> dplyr::filter(tranche_effectifs == input$filtre_taille_secteur)
+        df <- df %>% dplyr::filter(tranche_effectifs == input$filtre_taille_secteur)
       }
       if (isTRUE(input$afficher_tous_secteurs)) {
         return(df)
       }
       if (!is.null(input$filtre_secteurs) && length(input$filtre_secteurs) > 0) {
-        return(df |> dplyr::filter(secteur_activite %in% input$filtre_secteurs))
+        return(df %>% dplyr::filter(secteur_activite %in% input$filtre_secteurs))
       }
-      sector_summary <- df |>
-        dplyr::group_by(secteur_activite) |>
-        dplyr::summarise(median_score = stats::median(index, na.rm = TRUE), n = dplyr::n(), .groups = "drop") |>
-        dplyr::filter(n >= 10) |>
+      sector_summary <- df %>%
+        dplyr::group_by(secteur_activite) %>%
+        dplyr::summarise(median_score = stats::median(index, na.rm = TRUE), n = dplyr::n(), .groups = "drop") %>%
+        dplyr::filter(n >= 10) %>%
         dplyr::arrange(dplyr::desc(median_score))
-      df |>
+      df %>%
         dplyr::filter(secteur_activite %in% c(utils::head(sector_summary$secteur_activite, 5), utils::tail(sector_summary$secteur_activite, 5)))
     })
     
@@ -51,9 +51,9 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
       df_plot <- data_secteur_filtree()
       shiny::req(nrow(df_plot) > 0, cancelOutput = TRUE)
       
-      sector_summary <- df_plot |>
-        dplyr::group_by(secteur_activite) |>
-        dplyr::summarise(score_median = stats::median(index, na.rm = TRUE), .groups = "drop") |>
+      sector_summary <- df_plot %>%
+        dplyr::group_by(secteur_activite) %>%
+        dplyr::summarise(score_median = stats::median(index, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(score_median)
       
       n_cols <- dplyr::n_distinct(sector_summary$secteur_activite)
@@ -86,30 +86,30 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
         ggplot2::theme_minimal(base_size = 14) +
         ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
       
-      g |>
-        plotly::ggplotly(tooltip = "text") |>
+      g %>%
+        plotly::ggplotly(tooltip = "text") %>%
         plotly::layout(margin = list(l = left_margin, t = 10, r = 20, b = 10),
-                       height = plot_height) |>
+                       height = plot_height) %>%
         plotly::config(displayModeBar = FALSE)
     })
     
     output$table_secteur <- DT::renderDataTable({
-      summary_df <- data_secteur_filtree() |>
-        dplyr::group_by(secteur_activite) |>
+      summary_df <- data_secteur_filtree() %>%
+        dplyr::group_by(secteur_activite) %>%
         dplyr::summarise(`Nb entreprises` = dplyr::n(),
                          `Score Moyen`    = mean(index,  na.rm = TRUE),
                          `Score Médian`   = stats::median(index, na.rm = TRUE),
                          `% < 85`         = mean(index < 85, na.rm = TRUE),
-                         .groups          = "drop") |>
+                         .groups          = "drop") %>%
         dplyr::arrange(dplyr::desc(`Score Moyen`))
       
-      summary_df |>
+      summary_df %>%
         DT::datatable(rownames = FALSE, extensions = "Buttons",
                       options  = list(pageLength = 10, dom = "Bfrtip",
                                       buttons   = list("copy", "csv", "excel"),
-                                      language  = list(url = "//cdn.datatables.net/plug-ins/1.13.4/i18n/fr-FR.json"))) |>
-        DT::formatRound(columns = 2,   digits = 0) |>
-        DT::formatRound(columns = 3:4, digits = 1) |>
+                                      language  = list(url = "//cdn.datatables.net/plug-ins/1.13.4/i18n/fr-FR.json"))) %>%
+        DT::formatRound(columns = 2,   digits = 0) %>%
+        DT::formatRound(columns = 3:4, digits = 1) %>%
         DT::formatPercentage(columns = 5, digits = 1)
     })
   })

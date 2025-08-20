@@ -1,6 +1,6 @@
 # ==============================================================================
 # Fichier d'Utilitaires (utils.R)
-# Version pipe natif et qualifiée
+# Version pipe %>% et qualifiée
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -85,7 +85,7 @@ import_xlsx_from_zip <- function(zip_path, sheet = 1, file_pattern = "\\.xlsx$",
   xlsx_file <- list.files(tmp_dir, pattern = file_pattern, full.names = TRUE, recursive = TRUE)[1]
   if (is.na(xlsx_file)) stop("Aucun fichier Excel trouvé dans : ", zip_path)
   
-  df <- readxl::read_xlsx(xlsx_file, sheet = sheet, skip = skip) |> janitor::clean_names()
+  df <- readxl::read_xlsx(xlsx_file, sheet = sheet, skip = skip) %>% janitor::clean_names()
   
   unlink(tmp_dir, recursive = TRUE)
   
@@ -127,7 +127,7 @@ get_secteur_from_naf <- function(code_naf) {
 prepare_egapro_data <- function(raw_egapro_df) {
   message("--- Préparation et standardisation des données Egapro ---")
   
-  df_clean <- raw_egapro_df |> janitor::clean_names()
+  df_clean <- raw_egapro_df %>% janitor::clean_names()
   
   naf_col <- intersect(c("code_naf", "code_naf_ape"), names(df_clean))[1]
   effectifs_col <- intersect(c("tranche_deffectifs", "tranche_d_effectifs", "tranche_effectifs"), names(df_clean))[1]
@@ -135,7 +135,7 @@ prepare_egapro_data <- function(raw_egapro_df) {
   
   cols_aug_existantes <- intersect(c("note_ecart_taux_daugmentation_hors_promotion", "note_ecart_taux_daugmentation"), names(df_clean))
   
-  df_prepared <- df_clean |>
+  df_prepared <- df_clean %>%
     dplyr::mutate(
       dplyr::across(dplyr::starts_with("note"), as.character),
       dplyr::across(dplyr::starts_with("note"), as.numeric),
@@ -144,22 +144,22 @@ prepare_egapro_data <- function(raw_egapro_df) {
     )
   
   if (length(cols_aug_existantes) > 0) {
-    df_prepared <- df_prepared |> dplyr::mutate(note_augmentation_unifiee = dplyr::coalesce(!!!rlang::syms(cols_aug_existantes)))
+    df_prepared <- df_prepared %>% dplyr::mutate(note_augmentation_unifiee = dplyr::coalesce(!!!rlang::syms(cols_aug_existantes)))
   } else {
     df_prepared$note_augmentation_unifiee <- NA_real_
   }
   
-  df_prepared <- df_prepared |>
-    dplyr::filter(structure == "Entreprise", !is.na(note_index)) |>
+  df_prepared <- df_prepared %>%
+    dplyr::filter(structure == "Entreprise", !is.na(note_index)) %>%
     dplyr::rename(
       index = note_index, tranche_effectifs = dplyr::all_of(effectifs_col), code_naf = dplyr::all_of(naf_col), 
       note_remuneration = note_ecart_remuneration, note_augmentation = dplyr::any_of("note_augmentation_unifiee"),
       note_promotion = note_ecart_taux_de_promotion, note_conge_mat = note_retour_conge_maternite,
       note_hautes_rem = note_hautes_remunerations
-    ) |>
-    dplyr::mutate(secteur_activite = get_secteur_from_naf(code_naf)) |>
+    ) %>%
+    dplyr::mutate(secteur_activite = get_secteur_from_naf(code_naf)) %>%
     dplyr::select(siren, annee, index, raison_sociale, tranche_effectifs, code_naf, secteur_activite,
-                  dplyr::any_of(c("note_remuneration", "note_augmentation", "note_promotion", "note_conge_mat", "note_hautes_rem"))) |>
+                  dplyr::any_of(c("note_remuneration", "note_augmentation", "note_promotion", "note_conge_mat", "note_hautes_rem"))) %>%
     dplyr::distinct(siren, annee, .keep_all = TRUE)
   
   message("✅ Préparation Egapro terminée : ", nrow(df_prepared), " observations standardisées.")
@@ -168,13 +168,13 @@ prepare_egapro_data <- function(raw_egapro_df) {
 
 clean_sirene_data <- function(raw_sirene_df) {
   message("--- Nettoyage des données SIRENE ---")
-  sirene_clean <- raw_sirene_df |>
-    janitor::clean_names() |>
-    dplyr::filter(etablissementsiege == "oui") |>
-    dplyr::select(siren, code_commune = codecommuneetablissement, geolocetablissement) |>
-    dplyr::distinct(siren, .keep_all = TRUE) |>
-    tidyr::unnest(geolocetablissement) |>
-    dplyr::filter(!is.na(lat) & !is.na(lon)) |>
+  sirene_clean <- raw_sirene_df %>%
+    janitor::clean_names() %>%
+    dplyr::filter(etablissementsiege == "oui") %>%
+    dplyr::select(siren, code_commune = codecommuneetablissement, geolocetablissement) %>%
+    dplyr::distinct(siren, .keep_all = TRUE) %>%
+    tidyr::unnest(geolocetablissement) %>%
+    dplyr::filter(!is.na(lat) & !is.na(lon)) %>%
     dplyr::rename(latitude = lat, longitude = lon)
   
   message("✅ Nettoyage SIRENE OK : ", nrow(sirene_clean), " sièges sociaux géolocalisés.")
@@ -188,9 +188,9 @@ load_and_prepare_map <- function() {
   message("--- Chargement et préparation du fond de carte ---")
   myURL <- "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune-arrondissement-municipal-millesime/exports/geojson?lang=fr&refine=reg_name%3A%22%C3%8Ele-de-France%22&refine=year%3A%222020%22"
   
-  map <- sf::st_read(myURL, quiet = TRUE) |>
-    dplyr::filter(dep_code %in% c("75", "92", "93", "94")) |>
-    dplyr::mutate(dplyr::across(c(com_arm_code, com_arm_name, ept_code, ept_name, dep_code, dep_name), as.character)) |>
+  map <- sf::st_read(myURL, quiet = TRUE) %>%
+    dplyr::filter(dep_code %in% c("75", "92", "93", "94")) %>%
+    dplyr::mutate(dplyr::across(c(com_arm_code, com_arm_name, ept_code, ept_name, dep_code, dep_name), as.character)) %>%
     dplyr::select(com_code = com_arm_code, com_name = com_arm_name, ept_code, ept_name, dep_code, dep_name)
   
   map$ept_name <- ifelse(map$ept_name == "character(0)", "Ville de Paris", map$ept_name)
@@ -203,8 +203,8 @@ load_and_prepare_map <- function() {
 aggregate_map <- function(map_com_sf, level = "ept") {
   group_vars <- if (level == "ept") c("ept_code", "ept_name") else c("dep_code", "dep_name")
   
-  map_com_sf |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
+  map_com_sf %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) %>%
     dplyr::summarise(geometry = sf::st_union(geometry), .groups = "drop")
 }
 
