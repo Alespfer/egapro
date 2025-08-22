@@ -1,127 +1,132 @@
 /* ==========================================================================
-   STYLES.CSS - Thème pour le Baromètre de la Parité
-   Palette : #2C3E50 (Bleu Nuit) & #3498DB (Bleu Ciel)
+   STYLES.CSS - Thème "Technologie & Clarté"
    ========================================================================== */
 
-/* --- 1. Variables de Couleur --- */
-:root {
-  --bg-color: #F8F9FA;
-  --panel-bg: #FFFFFF;
-  --primary-color: #2C3E50;
-  --accent-color: #3498DB;
-  --success-color: #27AE60;
-  --danger-color: #C0392B;
-  --light-text: #ECF0F1;
-  --dark-text: #34495E;
-  --border-color: #EAECEE;
-  --shadow-color: rgba(44, 62, 80, 0.15);
+/* --- 1. Variables CSS (Héritées de bslib) --- */
+/* On utilise les variables définies dans app.R pour une cohérence maximale.
+   --bs-primary: #7B61FF (violet)
+   --bs-secondary: #495057 (gris neutre)
+   --bs-body-bg: #F0F2F5 (fond ardoise)
+   --bs-body-color: #1E2A3A (texte ardoise)
+*/
+
+/* --- 2. Barre de Navigation (Navbar) --- */
+/* La navbar utilisera la couleur secondaire (gris neutre) */
+.navbar {
+  background-color: var(--bs-secondary) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* --- 2. Styles Globaux --- */
-body {
-  background-color: var(--bg-color);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: var(--dark-text);
-}
-
-h1, h2, h3, h4, h5, h6 {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-hr {
-  border-top: 1px solid var(--border-color);
-}
-
-/* --- 3. Barre de Navigation (Navbar) --- */
-.navbar-default {
-  background-color: var(--primary-color);
-  border: none;
-  box-shadow: 0 3px 8px var(--shadow-color);
-  border-radius: 0;
-}
-.navbar-default .navbar-brand {
-  font-weight: bold;
-}
-.navbar-default .navbar-nav > li > a {
-  color: var(--light-text) !important;
-  text-shadow: none;
-  font-weight: 500;
-  transition: color 0.2s ease-in-out;
-}
-.navbar-default .navbar-nav > li > a:hover {
-  color: var(--accent-color) !important;
-  background-color: transparent !important;
-}
-.navbar-default .navbar-nav > .active > a,
-.navbar-default .navbar-nav > .active > a:focus,
-.navbar-default .navbar-nav > .active > a:hover {
-  color: #fff !important;
-  background-color: var(--accent-color) !important;
-  font-weight: 600;
-}
-
-/* --- 4. Panneaux (Sidebar, etc.) --- */
-.well {
-  background-color: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px var(--shadow-color);
-}
-
-/* --- 5. Widgets de Formulaire --- */
-label { font-weight: 600; }
-
-.js-range-slider .irs-bar {
-  background-color: var(--accent-color);
-  border: 1px solid var(--accent-color);
-}
-.js-range-slider .irs-from, .js-range-slider .irs-to, .js-range-slider .irs-single {
-  background-color: var(--primary-color);
-}
-.js-range-slider .irs-handle {
-  border: 2px solid var(--primary-color);
-  background-color: white;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
-}
-.js-range-slider .irs-handle:hover {
-  background-color: var(--accent-color);
-}
-
-.selectize-input {
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 15px;
-  border: 1px solid var(--border-color);
-  box-shadow: none !important;
-  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
-.selectize-input.focus {
-  border-color: var(--accent-color) !important;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2) !important;
-}
-
-.bootstrap-switch .bootstrap-switch-handle-on.bootstrap-switch-success { background: var(--success-color) !important; }
-.bootstrap-switch .bootstrap-switch-label { background: var(--bg-color) !important; }
-
-/* --- 6. Boutons et Tables --- */
-.btn-success {
-  background-color: var(--success-color);
-  border-color: var(--success-color);
-}
-.btn-success:hover {
-  background-color: #229954;
-  border-color: #229954;
-}
-
-table.dataTable thead th {
-  background-color: var(--primary-color) !important;
-  color: var(--light-text) !important;
-  border-bottom: 2px solid var(--accent-color) !important;
-}
-.dataTables_wrapper .dataTables_paginate .paginate_button.current, 
-.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
-  background: var(--accent-color) !important;
+.navbar-brand {
   color: white !important;
-  border-color: var(--accent-color) !important;
+  font-weight: 600;
+}
+
+.navbar .nav-item .nav-link {
+  color: rgba(255, 255, 255, 0.8) !important; /* Blanc semi-transparent */
+  font-weight: 500;
+}
+
+.navbar .nav-item .nav-link:hover {
+  color: white !important; /* Blanc plein au survol */
+}
+
+/* L'onglet actif est souligné par la couleur primaire (violet) */
+.navbar .nav-item .nav-link.active {
+  color: white !important;
+  font-weight: 700;
+  border-bottom: 3px solid var(--bs-primary);
+}
+
+
+/* --- 3. Cartes (Cards) et Panneaux --- */
+.card {
+  border: none; /* On enlève les bordures pour un look plus plat */
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+}
+
+.card-header {
+  font-weight: 600;
+  font-size: 1.5rem;
+  background-color: white; /* Fond blanc pour les en-têtes */
+  border-bottom: 1px solid #dee2e6; /* Bordure standard */
+}
+
+
+/* --- 4. Indicateurs Clés (Value Boxes) --- */
+/* On personnalise les thèmes "success" et "danger" pour qu'ils
+   soient plus doux et en accord avec la palette */
+.bg-success {
+  background-color: #d1f3e0 !important;
+  color: #0a3622 !important;
+}
+
+.bg-danger {
+  background-color: #f8d7da !important;
+  color: #58151c !important;
+}
+
+.value-box .value-box-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.value-box .showcase {
+  opacity: 0.2;
+}
+
+/* --- 5. Sliders --- */
+.js-range-slider .irs-bar {
+  background-color: var(--bs-primary);
+  border-top: 1px solid var(--bs-primary);
+  border-bottom: 1px solid var(--bs-primary);
+}
+
+.js-range-slider .irs-from, .js-range-slider .irs-to, .js-range-slider .irs-single {
+  background-color: var(--bs-primary);
+}
+
+.js-range-slider .irs-handle {
+  border: 2px solid white;
+  background-color: var(--bs-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* --- 6. Tableaux (DT) --- */
+table.dataTable thead th {
+  background-color: #f8f9fa !important; /* Fond gris clair pour l'en-tête */
+  color: var(--bs-body-color) !important; /* Texte sombre */
+  border-bottom: 2px solid var(--bs-primary) !important; /* Souligné en violet */
+}
+
+/* Centre le titre principal de l'application */
+.title {
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  font-weight: 700; /* Le rend un peu plus gras */
+}
+
+/* Ajoute une marge intérieure au conteneur principal de la page
+   pour que les éléments ne touchent pas les bords de l'écran */
+.container-fluid {
+  padding-left: 30px;
+  padding-right: 30px;
+  
+  /* On cible spécifiquement le menu déroulant du widget selectize */
+.selectize-dropdown-content {
+  max-height: 400px !important; /* Augmente la hauteur maximale du menu */
+  overflow-y: auto !important;   /* Ajoute une barre de défilement verticale si nécessaire */
+}
+
+/* DANS www/styles.css */
+
+/* Cible le h2 généré par titlePanel() */
+.container-fluid > .title-panel {
+  text-align: center;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  font-weight: 700;
 }

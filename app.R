@@ -15,9 +15,20 @@ source("global.R", local = TRUE)
 # INTERFACE UTILISATEUR (UI)
 # ==============================================================================
 ui <- fluidPage(
-  theme = "bootstrap",
+  theme = bslib::bs_theme(
+    version = 5,
+    bg = "#F0F2F5",       # Fond gris ardoise clair
+    fg = "#1E2A3A",       # Texte bleu ardoise sombre
+    primary = "#7B61FF",  # Accent violet vif
+    secondary = "#495057",# Gris neutre pour les éléments secondaires
+    base_font = bslib::font_google("Inter", local = TRUE), # Une police moderne et très lisible
+    "font-size-base" = "0.95rem" # On ajuste légèrement la taille de la police
+  ),
   tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")),
   titlePanel("Baromètre de la Parité en Entreprise – Territoires du Grand Paris"),
+  
+  shiny::uiOutput("data_freshness_banner_ui"),
+  
   
   navbarPage("Navigation",
              tabPanel("Carte & Territoires", icon = icon("map-marked-alt"), carte_ui("carte", master_df_historique)),
@@ -32,6 +43,19 @@ ui <- fluidPage(
 # SERVEUR (LOGIQUE DE L'APPLICATION)
 # ==============================================================================
 server <- function(input, output, session) {
+  
+  # --- AJOUTER CE BLOC AU DÉBUT DU SERVEUR ---
+  output$data_freshness_banner_ui <- shiny::renderUI({
+    if (!data_status$is_fresh) {
+      shiny::div(class = "alert alert-warning", role = "alert",
+                 style = "margin: 15px; text-align: center; font-weight: bold;",
+                 shiny::icon("triangle-exclamation"),
+                 data_status$message
+      )
+    } else {
+      NULL
+    }
+  })
   
   carte_server("carte", master_df_historique, map_ept, map_dep, palette_accessible)
   sectoriel_server("sectoriel", master_df_historique, palette_accessible)

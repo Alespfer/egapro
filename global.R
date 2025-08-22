@@ -10,6 +10,7 @@ library(shiny)
 library(shinythemes)
 library(sf)
 library(leaflet)
+library(bslib) # Ajouter cette ligne
 library(dplyr)
 library(ggplot2)
 library(DT)
@@ -24,6 +25,7 @@ library(shinyWidgets)
 library(jsonlite)
 library(viridis)
 library(shinydashboard)
+library(writexl)
 
 # ------------------------------------------------------------------------------
 # 2. Chargement des sources (AVEC LE BON CHEMIN)
@@ -54,6 +56,9 @@ map_dep <- sf::st_transform(map_dep, crs = 4326)
 eff_key <- c("50 à 250" = 150, "251 à 999" = 625, "1000 et plus" = 1500)
 master_df_historique <- master_df_historique |>
   dplyr::mutate(poids = unname(eff_key[tranche_effectifs]))
+
+
+data_status <- check_data_freshness()
 
 
 # -- Objets statiques --

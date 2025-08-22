@@ -21,7 +21,7 @@ library(stringr)
 library(readxl)
 
 # Fonctions de préparation personnalisées
-source("utils.R")
+source("R/utils.R")
 ```
 
 ### Étape 1 : Importation des Données Brutes
@@ -55,12 +55,19 @@ egapro_prepared <- prepare_egapro_data(raw_egapro)
 # 2.2 Nettoyage des données SIRENE (conservation des sièges sociaux)
 sirene_clean <- clean_sirene_data(raw_sirene)
 
+
+sirene_clean <- sirene_clean %>%
+  dplyr::mutate(
+    code_commune = if_else(stringr::str_starts(code_commune, "751"), "75056", code_commune)
+  )
+
 # 2.3 Calcul des indicateurs socio-démographiques au niveau communal
 communes_features <- create_socio_features(
   df_pop_structure = raw_pop_structure,
   df_ic = raw_ic_activite,
   df_act5 = raw_act5
 )
+
 
 paris_commune_data <- communes_features %>% filter(code_commune == "75056")
 
@@ -70,6 +77,8 @@ if(nrow(paris_commune_data) > 0) {
         mutate(code_commune = codes_arrondissements)
     communes_features <- bind_rows(communes_features, paris_arrondissements_data)
 }
+
+
 ```
 
 ### Étape 3 : Préparation des Données Géographiques

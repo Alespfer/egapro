@@ -1,34 +1,66 @@
+# ==============================================================================
+# Module: Carte & Territoires (Version Finale, Uniformisée et Corrigée)
+# ==============================================================================
+
 carte_ui <- function(id, df) {
   ns <- shiny::NS(id)
-  shiny::sidebarLayout(
-    shiny::sidebarPanel(width = 3,
-                        shiny::h4("Filtres de la carte"),
-                        shiny::sliderInput(ns("filtre_annee_carte"), "Année de l'Index :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
-                        shiny::selectInput(ns("niveau_geo_carte"), "Niveau d'analyse :", choices = c("Départements", "Territoires (EPT)")),
-                        shiny::selectizeInput(ns("selection_territoires"), "Sélectionner des territoires :", choices = NULL, multiple = TRUE, options = list(placeholder = 'Tous les territoires par défaut')),
-                        shiny::hr(),
-                        shiny::h4("Filtres sur les entreprises"),
-                        shiny::selectizeInput(ns("filtre_secteur_carte"), "Secteur d'activité :", choices = c("Tous les secteurs", sort(unique(na.omit(df$secteur_activite)))), multiple = TRUE, selected = "Tous les secteurs"),
-                        shiny::selectInput(ns("filtre_taille_carte"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
-                        shiny::sliderInput(ns("filtre_score_carte"), "Filtrer par Score Egapro :", min = 0, max = 100, value = c(0, 100)),
-                        shiny::hr(),
-                        shiny::h4("Options d'affichage"),
-                        shiny::radioButtons(ns("map_basemap"), "Choisir le fond de carte :", choices = list("Clair (Recommandé)" = "CartoDB.Positron", "Détaillé (Satellite)" = "Esri.WorldImagery", "Plan de rues" = "OpenStreetMap.Mapnik"), selected = "CartoDB.Positron"),
-                        shiny::hr(),
-                        shiny::uiOutput(ns("compteur_entreprises_ui")),
-                        shiny::downloadButton(ns("download_filtered_map"), "Exporter les données filtrées (CSV)", class = "btn-success")
+  
+  shiny::fluidRow(
+    shiny::column(
+      width = 3,
+      bslib::card(
+        bslib::card_header("Filtres de la carte"),
+        bslib::card_body(
+          shiny::sliderInput(ns("filtre_annee_carte"), "Année de l'Index :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
+          shiny::selectInput(ns("niveau_geo_carte"), "Niveau d'analyse :", choices = c("Départements", "Territoires (EPT)")),
+          shiny::selectizeInput(ns("selection_territoires"), "Sélectionner des territoires :", choices = NULL, multiple = TRUE, options = list(placeholder = 'Tous les territoires par défaut')),
+          shiny::hr(),
+          shiny::h4("Filtres sur les entreprises"),
+          shiny::selectizeInput(ns("filtre_secteur_carte"), "Secteur d'activité :", choices = c("Tous les secteurs", sort(unique(na.omit(df$secteur_activite)))), multiple = TRUE, selected = "Tous les secteurs"),
+          shiny::selectInput(ns("filtre_taille_carte"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
+          shiny::sliderInput(ns("filtre_score_carte"), "Filtrer par Score Egapro :", min = 0, max = 100, value = c(0, 100)),
+          shiny::hr(),
+          shiny::h4("Options d'affichage"),
+          shiny::radioButtons(ns("map_basemap"), "Choisir le fond de carte :", choices = list("Clair (Recommandé)" = "CartoDB.Positron", "Détaillé (Satellite)" = "Esri.WorldImagery", "Plan de rues" = "OpenStreetMap.Mapnik"), selected = "CartoDB.Positron"),
+          shiny::hr(),
+          shiny::uiOutput(ns("compteur_entreprises_ui")),
+          shiny::actionButton(ns("show_download_modal"), "Exporter les données filtrées", 
+                              icon = shiny::icon("download"), class = "btn-success w-100", style = "margin-top: 10px;")
+        )
+      )
     ),
-    shiny::mainPanel(width = 9, leaflet::leafletOutput(ns("map"), height = "80vh"), color_switch_ui(ns("color_switch_carte")))
+    
+    shiny::column(
+      width = 9,
+      bslib::card(
+        bslib::card_body(
+          padding = 0,
+          leaflet::leafletOutput(ns("map"), height = "calc(100vh - 150px)")
+        )
+      )
+    )
   )
 }
 
 carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_accessible) {
+  # On s'assure que le package pour l'export Excel est disponible
+  if (!require(writexl)) {
+    install.packages("writexl")
+    library(writexl)
+  }
+  
   shiny::moduleServer(id, function(input, output, session) {
+    
+    # --- LOGIQUE RÉACTIVE ---
     shiny::observeEvent(input$niveau_geo_carte, {
       choix <- if (input$niveau_geo_carte == "Départements") sort(unique(master_df_historique$dep_name)) else sort(unique(master_df_historique$ept_name))
       shiny::updateSelectizeInput(session, "selection_territoires", choices = choix)
     }, ignoreNULL = FALSE)
-    data_annee_carte <- shiny::reactive({ master_df_historique %>% dplyr::filter(annee == input$filtre_annee_carte) })
+    
+    data_annee_carte <- shiny::reactive({ 
+      master_df_historique %>% dplyr::filter(annee == input$filtre_annee_carte) 
+    })
+    
     map_data_filtrée <- shiny::reactive({
       df_annee <- data_annee_carte()
       if (input$niveau_geo_carte == "Départements") {
@@ -42,6 +74,7 @@ carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_acc
       }
       df_map %>% dplyr::filter(!is.na(score_moyen))
     })
+    
     points_filtres_carte <- shiny::reactive({
       df <- data_annee_carte()
       if (!is.null(input$selection_territoires) && length(input$selection_territoires) > 0) {
@@ -52,14 +85,14 @@ carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_acc
       if (!is.null(input$filtre_secteur_carte) && !("Tous les secteurs" %in% input$filtre_secteur_carte)) df <- df %>% dplyr::filter(secteur_activite %in% input$filtre_secteur_carte)
       df %>% dplyr::filter(index >= input$filtre_score_carte[1] & index <= input$filtre_score_carte[2])
     })
+    
+    # --- SORTIES UI ---
     output$compteur_entreprises_ui <- shiny::renderUI({
       n_entreprises <- nrow(points_filtres_carte())
       shiny::tags$p(style="text-align: center; font-size: 1.1em; color: #333;", shiny::HTML(paste0("<strong>", format(n_entreprises, big.mark=" "), "</strong> entreprises affichées")))
     })
-    output$download_filtered_map <- shiny::downloadHandler(
-      filename = function() { paste0("donnees_filtrees_carte_", Sys.Date(), ".csv") },
-      content = function(file) { utils::write.csv(points_filtres_carte(), file, row.names = FALSE, fileEncoding = "UTF-8") }
-    )
+    
+    # --- LOGIQUE CARTE ---
     output$map <- leaflet::renderLeaflet({
       leaflet::leaflet() %>% 
         leaflet::setView(lng = 2.35, lat = 48.85, zoom = 10) %>%
@@ -67,6 +100,7 @@ carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_acc
         leaflet::addProviderTiles("Esri.WorldImagery", group = "Satellite") %>%
         leaflet::addProviderTiles("OpenStreetMap.Mapnik", group = "Plan de rues")
     })
+    
     shiny::observe({
       proxy <- leaflet::leafletProxy("map") %>%
         leaflet::hideGroup(c("Clair", "Satellite", "Plan de rues")) %>%
@@ -109,5 +143,38 @@ carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_acc
       }
       proxy %>% leaflet::addLayersControl(overlayGroups = c("Vue Territoriale", "Vue Entreprises"), options = leaflet::layersControlOptions(collapsed = FALSE, position = "topright"))
     })
+    
+    # --- LOGIQUE POUR LE MODAL DE TÉLÉCHARGEMENT ---
+    shiny::observeEvent(input$show_download_modal, {
+      shiny::showModal(shiny::modalDialog(
+        title = "Exporter les Données Filtrées",
+        shiny::p("Choisissez le format pour télécharger la liste des entreprises actuellement visibles sur la carte."),
+        footer = shiny::tagList(
+          shiny::modalButton("Annuler"),
+          shiny::downloadButton(session$ns("download_csv"), "Télécharger (CSV)", class = "btn-primary"),
+          shiny::downloadButton(session$ns("download_excel"), "Télécharger (Excel)", class = "btn-success")
+        )
+      ))
+    })
+    
+    # --- GESTIONNAIRES DE TÉLÉCHARGEMENT ---
+    output$download_csv <- shiny::downloadHandler(
+      filename = function() {
+        paste0("donnees_filtrees_carte_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        utils::write.csv(points_filtres_carte(), file, row.names = FALSE, fileEncoding = "UTF-8")
+      }
+    )
+    
+    output$download_excel <- shiny::downloadHandler(
+      filename = function() {
+        paste0("donnees_filtrees_carte_", Sys.Date(), ".xlsx")
+      },
+      content = function(file) {
+        writexl::write_xlsx(points_filtres_carte(), file)
+      }
+    )
+    
   })
 }

@@ -1,23 +1,53 @@
+# ==============================================================================
+# Module: Analyse Sectorielle (Version Améliorée Visuellement)
+# ==============================================================================
+
 sectoriel_ui <- function(id, df) {
   ns <- shiny::NS(id)
-  shiny::sidebarLayout(
-    shiny::sidebarPanel(width = 3,
-                        shiny::h4("Filtres de l'analyse"),
-                        shiny::sliderInput(ns("filtre_annee_secteur"), "Année :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
-                        shiny::selectInput(ns("filtre_taille_secteur"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
-                        shiny::selectizeInput(ns("filtre_secteurs"), "Secteur(s) d'activité :", choices = sort(unique(na.omit(df$secteur_activite))), multiple = TRUE, options  = list(placeholder = "Top/Bottom 5", maxItems = 15)),
-                        shiny::tags$small(
-                          class = "text-muted",
-                          shiny::icon("info-circle"), 
-                          "L'affichage par défaut montre les 5 meilleurs et 5 moins bons secteurs",
-                          "ayant au moins 10 entreprises déclarantes pour la période sélectionnée."
-                        ),
-                        shiny::checkboxInput(ns("afficher_tous_secteurs"), "Afficher tous les secteurs", value = FALSE)
+  
+  # On utilise la même structure en grille que pour l'onglet Historique
+  shiny::fluidRow(
+    # Colonne de gauche pour les filtres
+    shiny::column(
+      width = 3,
+      bslib::card(
+        bslib::card_header("Filtres de l'analyse"),
+        bslib::card_body(
+          shiny::sliderInput(ns("filtre_annee_secteur"), "Année :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
+          shiny::selectInput(ns("filtre_taille_secteur"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
+          shiny::selectizeInput(ns("filtre_secteurs"), "Secteur(s) d'activité :", choices = sort(unique(na.omit(df$secteur_activite))), multiple = TRUE, options  = list(placeholder = "Top/Bottom 5", maxItems = 15)),
+          shiny::tags$small(
+            class = "text-muted",
+            shiny::icon("info-circle"), 
+            "L'affichage par défaut montre les 5 meilleurs et 5 moins bons secteurs ayant au moins 10 entreprises déclarantes."
+          ),
+          shiny::checkboxInput(ns("afficher_tous_secteurs"), "Afficher tous les secteurs", value = FALSE)
+        )
+      )
     ),
-    shiny::mainPanel(width = 9, shiny::h3("Performance par Secteur d'Activité"), shiny::uiOutput(ns("plot_sector_ui")), color_switch_ui(ns("color_switch_secteur")), shiny::hr(), shiny::h4("Tableau de synthèse"), DT::dataTableOutput(ns("table_secteur")))
+    
+    # Colonne de droite pour les visualisations
+    shiny::column(
+      width = 9,
+      bslib::card(
+        bslib::card_header("Performance par Secteur d'Activité"),
+        bslib::card_body(
+          # On utilise un uiOutput pour gérer la hauteur dynamique du graphique
+          shiny::uiOutput(ns("plot_sector_ui")),
+          color_switch_ui(ns("color_switch_secteur"))
+        )
+      ),
+      bslib::card(
+        bslib::card_header("Tableau de Synthèse par Secteur"),
+        bslib::card_body(
+          DT::dataTableOutput(ns("table_secteur"))
+        )
+      )
+    )
   )
 }
 
+# Le serveur est celui que tu as fourni, il est déjà parfait.
 sectoriel_server <- function(id, master_df_historique, palette_accessible) {
   shiny::moduleServer(id, function(input, output, session) {
     data_secteur_filtree <- shiny::reactive({
@@ -56,15 +86,21 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
         dplyr::summarise(score_median = stats::median(index, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(score_median)
       
-      n_cols <- dplyr::n_distinct(sector_summary$secteur_activite)
-      palette_cols <- if (isTRUE(input$color_switch_secteur)) {
-        rep(palette_accessible, length.out = n_cols)
+      default_palette <- c("#7B61FF", "#495057", "#20C997", "#FD7E14", "#FFC107")
+      
+      palette_a_utiliser <- if (isTRUE(input$color_switch_secteur)) {
+        palette_accessible
       } else {
-        rep(RColorBrewer::brewer.pal(9, "Set1"), length.out = n_cols)
+        default_palette
       }
+      
+      n_cols <- dplyr::n_distinct(sector_summary$secteur_activite)
+      palette_cols <- rep(palette_a_utiliser, length.out = n_cols)
+      
       sector_summary$col <- palette_cols
-      plot_height <- max(400, 40 * nrow(sector_summary))
-      left_margin <- max(150, 6 * max(nchar(sector_summary$secteur_activite)))
+      
+      plot_height <- max(400, 35 * nrow(sector_summary))
+      left_margin <- max(150, 7 * max(nchar(sector_summary$secteur_activite)))
       plot_height_react(plot_height)
       
       g <- ggplot2::ggplot(sector_summary,
@@ -73,22 +109,24 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
                                         text = sprintf("<b>Secteur :</b> %s<br><b>Médiane :</b> %.1f",
                                                        secteur_activite, score_median))) +
         ggplot2::geom_segment(ggplot2::aes(x = 0, xend = score_median,
-                                           yend = reorder(stringr::str_wrap(secteur_activite, 40),
-                                                          score_median)),
-                              linewidth = 1.2, colour = "#BDBDBD") +
-        ggplot2::geom_point(ggplot2::aes(fill = col),
-                            colour = "black", shape = 21, size = 7, stroke = .6) +
+                                           yend = reorder(stringr::str_wrap(secteur_activite, 40), score_median)),
+                              linewidth = 1.5, colour = "#CED4DA") +
+        ggplot2::geom_point(size = 7, aes(fill = col), shape = 21, colour = "#495057", stroke = 1) +
         ggplot2::geom_vline(xintercept = 85, linetype = "dashed",
-                            linewidth = 1.2, colour = "red") +
+                            linewidth = 1, colour = "#DC3545") +
         ggplot2::scale_fill_identity() +
-        ggplot2::guides(colour = "none", fill = "none") +
+        ggplot2::guides(fill = "none") +
         ggplot2::labs(x = "Score Egapro (médiane)", y = NULL) +
-        ggplot2::theme_minimal(base_size = 14) +
-        ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
+        ggplot2::theme_minimal(base_family = "Inter") +
+        ggplot2::theme(
+          panel.grid.major.y = ggplot2::element_blank(),
+          panel.grid.minor.x = ggplot2::element_blank(),
+          axis.text.y = ggplot2::element_text(face = "bold")
+        )
       
       g %>%
         plotly::ggplotly(tooltip = "text") %>%
-        plotly::layout(margin = list(l = left_margin, t = 10, r = 20, b = 10),
+        plotly::layout(margin = list(l = left_margin, t = 30, r = 20, b = 40),
                        height = plot_height) %>%
         plotly::config(displayModeBar = FALSE)
     })

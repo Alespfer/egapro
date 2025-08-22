@@ -181,24 +181,138 @@ clean_sirene_data <- function(raw_sirene_df) {
   return(sirene_clean)
 }
 
+#' Standardise le nom de la colonne du code commune.
+#'
+#' @description Les fichiers de l'INSEE ont des noms de colonne variables pour
+#' le code commune ('codgeo', 'com', etc.). Cette fonction les renomme en 'code_commune'.
+#' @param df Un dataframe issu des données de l'INSEE.
+#' @return Le même dataframe avec la colonne du code commune renommée.
+rename_to_com <- function(df) {
+  # Trouve la colonne qui correspond au code commune
+  # en cherchant des noms potentiels
+  col_names <- names(df)
+  commune_col <- intersect(c("codgeo", "com", "cod_com"), col_names)[1]
+  
+  if (is.na(commune_col)) {
+    warning("Impossible de trouver une colonne de code commune ('codgeo', 'com', 'cod_com'). Le dataframe est retourné tel quel.")
+    return(df)
+  }
+  
+  # Renomme la colonne trouvée en 'code_commune'
+  df %>%
+    dplyr::rename(code_commune = !!rlang::sym(commune_col))
+}
+
+
+#' Calcule les indicateurs socio-démographiques au niveau communal.
+#'
+#' @description Fusionne plusieurs tables du recensement INSEE pour créer des indicateurs clés.
+#' @param df_pop_structure Non utilisé dans cette version, mais gardé pour compatibilité.
+#' @param df_ic Dataframe "base-ic-activite-residents-2021".
+#' @param df_act5 Dataframe "TD_ACT5_2021" avec le détail par sexe, âge et CSP.
+#' @return Un dataframe avec un indicateur par ligne et par commune.
+create_socio_features <- function(df_pop_structure, df_ic, df_act5) {
+  
+  message("-> Démarrage du calcul des indicateurs socio-démographiques...")
+  
+  # Nettoyage des noms de colonnes pour la robustesse
+  df_ic <- df_ic %>% janitor::clean_names()
+  df_act5 <- df_act5 %>% janitor::clean_names()
+  
+  # 1. Taux d'activité des femmes (source: df_ic "Activité des résidents")
+  taux_activite <- df_ic %>%
+    dplyr::select(code_commune = com, p21_fact1564, p21_f1564) %>%
+    dplyr::group_by(code_commune) %>%
+    dplyr::summarise(
+      total_femmes_actives = sum(p21_fact1564, na.rm = TRUE),
+      total_femmes_pop = sum(p21_f1564, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      taux_activite_femmes = (total_femmes_actives / total_femmes_pop) * 100
+    ) %>%
+    dplyr::select(code_commune, taux_activite_femmes)
+  
+  # 2. Structure de l'emploi (source: df_act5)
+  # NOTE: La nomenclature INSEE standard pour les CSP est :
+  # CS1: Agriculteurs, CS2: Artisans/Commerçants, CS3: Cadres, CS4: Prof. Inter., CS5: Employés, CS6: Ouvriers
+  # Dans ce fichier, les colonnes semblent être numérotées de 61 à 66.
+  # Nous allons supposer que cs1_63 = Cadres (CS3) et cs1_64 = Prof. Inter. (CS4)
+  
+  structure_emploi <- df_act5 %>%
+    # S'assurer que le code commune est bien nommé
+    rename_to_com() %>%
+    # Calculer les totaux en additionnant les colonnes par sexe et CSP
+    dplyr::mutate(
+      # Femmes (sexe2)
+      femmes_cadres = rowSums(dplyr::select(., dplyr::starts_with("cs1_63") & dplyr::ends_with("_sexe2")), na.rm = TRUE),
+      femmes_prof_inter = rowSums(dplyr::select(., dplyr::starts_with("cs1_64") & dplyr::ends_with("_sexe2")), na.rm = TRUE),
+      femmes_actives_occupees_total = rowSums(dplyr::select(., dplyr::starts_with("cs1_") & dplyr::ends_with("_sexe2")), na.rm = TRUE),
+      
+      # Ensemble (sexe1 + sexe2)
+      ensemble_cadres = rowSums(dplyr::select(., dplyr::starts_with("cs1_63")), na.rm = TRUE)
+    ) %>%
+    # Calculer les indicateurs finaux
+    dplyr::mutate(
+      part_femmes_cadres = (femmes_cadres / femmes_actives_occupees_total) * 100,
+      part_femmes_prof_inter = (femmes_prof_inter / femmes_actives_occupees_total) * 100,
+      taux_femmes_parmi_cadres = (femmes_cadres / ensemble_cadres) * 100
+    ) %>%
+    dplyr::select(code_commune, part_femmes_cadres, part_femmes_prof_inter, taux_femmes_parmi_cadres)
+  
+  # 3. Fusion des indicateurs
+  communes_features <- taux_activite %>%
+    dplyr::full_join(structure_emploi, by = "code_commune") %>%
+    # Remplacer les NaN ou Inf potentiels générés par des divisions par zéro
+    dplyr::mutate(dplyr::across(where(is.numeric), ~ ifelse(is.finite(.x), .x, NA)))
+  
+  message("✅ Création des indicateurs socio-démographiques terminée.")
+  return(communes_features)
+}
+
 # ------------------------------------------------------------------------------
 # SECTION 3 : Fonctions de gestion géographique
 # ------------------------------------------------------------------------------
+#' Charge et prépare le fond de carte des communes.
+#'
+#' @description Charge les données, filtre sur le périmètre, harmonise
+#' et fusionne les arrondissements de Paris en une seule commune "Paris" (75056).
+#' @return Un objet sf contenant les polygones des communes, avec Paris unifié.
 load_and_prepare_map <- function() {
   message("--- Chargement et préparation du fond de carte ---")
   myURL <- "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune-arrondissement-municipal-millesime/exports/geojson?lang=fr&refine=reg_name%3A%22%C3%8Ele-de-France%22&refine=year%3A%222020%22"
   
   map <- sf::st_read(myURL, quiet = TRUE) %>%
     dplyr::filter(dep_code %in% c("75", "92", "93", "94")) %>%
-    dplyr::mutate(dplyr::across(c(com_arm_code, com_arm_name, ept_code, ept_name, dep_code, dep_name), as.character)) %>%
-    dplyr::select(com_code = com_arm_code, com_name = com_arm_name, ept_code, ept_name, dep_code, dep_name)
+    dplyr::mutate(
+      # --- CORRECTION DÉFINITIVE ---
+      # 1. On identifie les lignes qui sont des arrondissements parisiens.
+      is_paris_arrondissement = stringr::str_starts(com_arm_code, "751"),
+      
+      # 2. On remplace à la fois le code ET le nom pour ces lignes.
+      com_arm_code = ifelse(is_paris_arrondissement, "75056", com_arm_code),
+      com_arm_name = ifelse(is_paris_arrondissement, "Paris", com_arm_name),
+      
+      # 3. On s'assure que toutes les colonnes sont des caractères simples.
+      dplyr::across(c(com_arm_code, com_arm_name, ept_code, ept_name, dep_code, dep_name), as.character)
+    ) %>%
+    dplyr::select(com_code = com_arm_code, com_name = com_arm_name, ept_code, ept_name, dep_code, dep_name, geometry)
   
-  map$ept_name <- ifelse(map$ept_name == "character(0)", "Ville de Paris", map$ept_name)
+  # La logique pour le nom de l'EPT de Paris reste la même
+  map$ept_name <- ifelse(map$ept_name == "character(0)" | map$com_code == "75056", "Ville de Paris", map$ept_name)
   map$ept_code <- ifelse(map$ept_name == "Ville de Paris", "T1", map$ept_code)
   
-  message("✅ Fond de carte communal OK : ", nrow(map), " communes.")
+  # Maintenant que toutes les lignes de Paris ont le même com_code ET com_name,
+  # la fusion va fonctionner parfaitement.
+  map <- map %>%
+    dplyr::group_by(com_code, com_name, ept_code, ept_name, dep_code, dep_name) %>%
+    dplyr::summarise(geometry = sf::st_union(geometry), .groups = "drop")
+  
+  message("✅ Fond de carte communal OK : ", nrow(map), " communes (Paris unifié).")
   return(map)
 }
+
+
 
 aggregate_map <- function(map_com_sf, level = "ept") {
   group_vars <- if (level == "ept") c("ept_code", "ept_name") else c("dep_code", "dep_name")
@@ -240,4 +354,44 @@ color_switch_ui <- function(id) {
   shiny::div(style = "text-align: right; margin-top: 15px;",
              shinyWidgets::switchInput(inputId = id, label = "Palette accessible", onLabel = "Oui", offLabel = "Non", value = FALSE,
                                        size = "small", inline = TRUE, width = "auto"))
+}
+
+
+# ------------------------------------------------------------------------------
+# SECTION 5 : Fonctions de gestion de l'application
+# ------------------------------------------------------------------------------
+
+#' Vérifie la fraîcheur d'un fichier de données.
+#'
+#' @param file_path Chemin vers le fichier à vérifier.
+#' @param threshold_days Nombre de jours au-delà duquel les données sont considérées comme obsolètes.
+#' @return Une liste contenant l'état des données (is_fresh), leur âge et un message.
+check_data_freshness <- function(file_path = "data_shiny/master_df_historique.RDS", threshold_days = 30) {
+  
+  if (!file.exists(file_path)) {
+    stop("Fichier de données principal introuvable à l'emplacement : ", file_path)
+  }
+  
+  last_modified_time <- file.info(file_path)$mtime
+  age_days <- as.numeric(difftime(Sys.time(), last_modified_time, units = "days"))
+  
+  is_fresh <- age_days <= threshold_days
+  
+  message_text <- if (is_fresh) {
+    paste0("Les données sont à jour (dernière mise à jour il y a ", floor(age_days), " jours).")
+  } else {
+    paste0("Les données datent de plus de ", threshold_days, " jours (dernière mise à jour il y a ", floor(age_days), " jours). Il est recommandé de les rafraîchir.")
+  }
+  
+  # Affiche le statut dans la console au démarrage pour le développeur
+  message("Vérification des données : ", message_text)
+  
+  return(
+    list(
+      is_fresh = is_fresh,
+      last_modified = as.Date(last_modified_time),
+      age_days = floor(age_days),
+      message = message_text
+    )
+  )
 }
