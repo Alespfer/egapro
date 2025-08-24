@@ -10,6 +10,33 @@
    --bs-body-color: #1E2A3A (texte ardoise)
 */
 
+
+/* ==========================================================================
+   AJOUT : IMAGE DE FOND TRAITÉE AVEC OPACITÉ CONTRÔLÉE
+   ========================================================================== */
+
+body::before {
+  content: ''; 
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+
+  /* On charge l'image de La Défense */
+  background-image: url('background_defense.jpg');
+  background-size: cover;
+  background-position: center center;
+
+  /* Le contrôle de l'opacité - à ajuster si besoin */
+  opacity: 0.1; /* J'ai légèrement augmenté l'opacité pour que l'image soit visible */
+
+  /* L'ASTUCE : Traitement de l'image en temps réel */
+  /* On la passe en noir et blanc, et on ajoute un léger flou */
+  filter: grayscale(100%) blur(2px);
+}
+
 /* --- 2. Barre de Navigation (Navbar) --- */
 /* La navbar utilisera la couleur secondaire (gris neutre) */
 .navbar {

@@ -1,19 +1,24 @@
 # ==============================================================================
-# Module: Analyse Sectorielle (Version Améliorée Visuellement)
+# Module: Analyse Sectorielle (Version CORRIGÉE)
 # ==============================================================================
 
 sectoriel_ui <- function(id, df) {
   ns <- shiny::NS(id)
   
-  # On utilise la même structure en grille que pour l'onglet Historique
   shiny::fluidRow(
-    # Colonne de gauche pour les filtres
     shiny::column(
       width = 3,
       bslib::card(
         bslib::card_header("Filtres de l'analyse"),
         bslib::card_body(
-          shiny::sliderInput(ns("filtre_annee_secteur"), "Année :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
+          shinyWidgets::sliderTextInput(
+            inputId = ns("filtre_annee_secteur"),
+            label = "Année :",
+            choices = sort(unique(df$annee)),
+            selected = max(df$annee),
+            grid = FALSE,
+            width = "100%"
+          ),
           shiny::selectInput(ns("filtre_taille_secteur"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
           shiny::selectizeInput(ns("filtre_secteurs"), "Secteur(s) d'activité :", choices = sort(unique(na.omit(df$secteur_activite))), multiple = TRUE, options  = list(placeholder = "Top/Bottom 5", maxItems = 15)),
           shiny::tags$small(
@@ -26,15 +31,18 @@ sectoriel_ui <- function(id, df) {
       )
     ),
     
-    # Colonne de droite pour les visualisations
     shiny::column(
       width = 9,
+      shiny::uiOutput(ns("kpi_sectoriel_ui")),
       bslib::card(
-        bslib::card_header("Performance par Secteur d'Activité"),
+        bslib::card_header(
+          shiny::div(class = "d-flex justify-content-between align-items-center",
+                     "Performance par Secteur d'Activité",
+                     color_switch_ui(ns("color_switch_secteur"))
+          )
+        ),
         bslib::card_body(
-          # On utilise un uiOutput pour gérer la hauteur dynamique du graphique
-          shiny::uiOutput(ns("plot_sector_ui")),
-          color_switch_ui(ns("color_switch_secteur"))
+          shiny::uiOutput(ns("plot_sector_ui"))
         )
       ),
       bslib::card(
@@ -47,9 +55,9 @@ sectoriel_ui <- function(id, df) {
   )
 }
 
-# Le serveur est celui que tu as fourni, il est déjà parfait.
-sectoriel_server <- function(id, master_df_historique, palette_accessible) {
+sectoriel_server <- function(id, master_df_historique, palette_accessible, shared_state) {
   shiny::moduleServer(id, function(input, output, session) {
+    # ... (logique de data_secteur_filtree inchangée) ...
     data_secteur_filtree <- shiny::reactive({
       df <- master_df_historique %>%
         dplyr::filter(annee == input$filtre_annee_secteur, !is.na(secteur_activite))
@@ -71,6 +79,39 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
         dplyr::filter(secteur_activite %in% c(utils::head(sector_summary$secteur_activite, 5), utils::tail(sector_summary$secteur_activite, 5)))
     })
     
+    # ... (logique des kpi inchangée) ...
+    output$kpi_sectoriel_ui <- shiny::renderUI({
+      df_filtre <- data_secteur_filtree()
+      shiny::validate(shiny::need(nrow(df_filtre) > 0, "Aucune donnée à afficher pour les filtres sélectionnés."))
+      mediane_globale <- median(df_filtre$index, na.rm = TRUE)
+      summary_secteur <- df_filtre %>%
+        dplyr::group_by(secteur_activite) %>%
+        dplyr::summarise(mediane_score = median(index, na.rm = TRUE), .groups = "drop") %>%
+        dplyr::filter(!is.na(mediane_score)) %>%
+        dplyr::arrange(dplyr::desc(mediane_score))
+      secteur_top <- if(nrow(summary_secteur) > 0) summary_secteur$secteur_activite[1] else "N/A"
+      score_top <- if(nrow(summary_secteur) > 0) summary_secteur$mediane_score[1] else NA
+      shiny::fluidRow(
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Secteur le plus performant",
+                        value = secteur_top,
+                        showcase = shiny::icon("trophy"),
+                        theme = "success",
+                        p(paste("Médiane de", round(score_top, 1)))
+                      )
+        ),
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Médiane globale (tous secteurs affichés)",
+                        value = round(mediane_globale, 1),
+                        showcase = shiny::icon("chart-pie"),
+                        theme = "primary"
+                      )
+        )
+      )
+    })
+    
     plot_height_react <- shiny::reactiveVal(450)
     
     output$plot_sector_ui <- shiny::renderUI({
@@ -86,17 +127,11 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
         dplyr::summarise(score_median = stats::median(index, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(score_median)
       
+      # ... (logique de palette inchangée) ...
       default_palette <- c("#7B61FF", "#495057", "#20C997", "#FD7E14", "#FFC107")
-      
-      palette_a_utiliser <- if (isTRUE(input$color_switch_secteur)) {
-        palette_accessible
-      } else {
-        default_palette
-      }
-      
+      palette_a_utiliser <- if (isTRUE(input$color_switch_secteur)) palette_accessible else default_palette
       n_cols <- dplyr::n_distinct(sector_summary$secteur_activite)
       palette_cols <- rep(palette_a_utiliser, length.out = n_cols)
-      
       sector_summary$col <- palette_cols
       
       plot_height <- max(400, 35 * nrow(sector_summary))
@@ -106,14 +141,13 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
       g <- ggplot2::ggplot(sector_summary,
                            ggplot2::aes(x = score_median,
                                         y = reorder(stringr::str_wrap(secteur_activite, 40), score_median),
+                                        key = secteur_activite,
                                         text = sprintf("<b>Secteur :</b> %s<br><b>Médiane :</b> %.1f",
                                                        secteur_activite, score_median))) +
-        ggplot2::geom_segment(ggplot2::aes(x = 0, xend = score_median,
-                                           yend = reorder(stringr::str_wrap(secteur_activite, 40), score_median)),
-                              linewidth = 1.5, colour = "#CED4DA") +
+        # ... (geoms inchangés) ...
+        ggplot2::geom_segment(ggplot2::aes(x = 0, xend = score_median, yend = reorder(stringr::str_wrap(secteur_activite, 40), score_median)), linewidth = 1.5, colour = "#CED4DA") +
         ggplot2::geom_point(size = 7, aes(fill = col), shape = 21, colour = "#495057", stroke = 1) +
-        ggplot2::geom_vline(xintercept = 85, linetype = "dashed",
-                            linewidth = 1, colour = "#DC3545") +
+        ggplot2::geom_vline(xintercept = 85, linetype = "dashed", linewidth = 1, colour = "#DC3545") +
         ggplot2::scale_fill_identity() +
         ggplot2::guides(fill = "none") +
         ggplot2::labs(x = "Score Egapro (médiane)", y = NULL) +
@@ -124,13 +158,27 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible) {
           axis.text.y = ggplot2::element_text(face = "bold")
         )
       
+      # --- CORRECTION ---: L'argument 'height' est déplacé ici.
       g %>%
-        plotly::ggplotly(tooltip = "text") %>%
-        plotly::layout(margin = list(l = left_margin, t = 30, r = 20, b = 40),
-                       height = plot_height) %>%
+        plotly::ggplotly(tooltip = "text", source = "plot_secteur_source", height = plot_height) %>%
+        plotly::layout(margin = list(l = left_margin, t = 30, r = 20, b = 40)) %>%
         plotly::config(displayModeBar = FALSE)
     })
     
+    # ... (logique de l'observeEvent pour l'interactivité inchangée) ...
+    shiny::observeEvent(plotly::event_data("plotly_click", source = "plot_secteur_source"), {
+      clicked_sector <- plotly::event_data("plotly_click", source = "plot_secteur_source")$key
+      shiny::req(clicked_sector)
+      shared_state$selected_sector <- clicked_sector
+      shiny::showNotification(
+        paste("Filtre appliqué sur le secteur :", clicked_sector, ". Affichage de la carte..."),
+        type = "message",
+        duration = 4
+      )
+      shiny::updateNavbarPage(session, "main_navbar", selected = "Carte & Territoires")
+    })
+    
+    # ... (logique de la table inchangée) ...
     output$table_secteur <- DT::renderDataTable({
       summary_df <- data_secteur_filtree() %>%
         dplyr::group_by(secteur_activite) %>%

@@ -1,13 +1,11 @@
 # ==============================================================================
-# Module: Historique & Évolutions (Version Uniformisée)
+# Module: Historique & Évolutions (Version avec UI affinée)
 # ==============================================================================
 
 historique_ui <- function(id, df) {
   ns <- shiny::NS(id)
   
-  # On utilise la structure en grille fluidRow/column
   shiny::fluidRow(
-    # Colonne de gauche pour les filtres
     shiny::column(
       width = 3,
       bslib::card(
@@ -23,15 +21,20 @@ historique_ui <- function(id, df) {
       )
     ),
     
-    # Colonne de droite pour les visualisations
     shiny::column(
       width = 9,
       shiny::uiOutput(ns("kpi_historique_ui")),
       bslib::card(
-        bslib::card_header("Évolution Comparée des Scores Egapro"),
+        # --- MODIFICATION ---: Le header contient maintenant le titre et le switch
+        bslib::card_header(
+          shiny::div(class = "d-flex justify-content-between align-items-center",
+                     "Évolution Comparée des Scores Egapro",
+                     color_switch_ui(ns("color_switch_historique"))
+          )
+        ),
+        # --- MODIFICATION ---: Le body ne contient plus que le graphique
         bslib::card_body(
-          plotly::plotlyOutput(ns("plot_historique_interactif"), height = "450px"),
-          color_switch_ui(ns("color_switch_historique"))
+          plotly::plotlyOutput(ns("plot_historique_interactif"), height = "450px")
         )
       ),
       bslib::card(

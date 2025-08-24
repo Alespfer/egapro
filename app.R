@@ -33,6 +33,7 @@ ui <- fluidPage(
   navbarPage("Navigation",
              tabPanel("Carte & Territoires", icon = icon("map-marked-alt"), carte_ui("carte", master_df_historique)),
              tabPanel("Analyse Sectorielle", icon = icon("industry"), sectoriel_ui("sectoriel", master_df_historique)),
+             tabPanel("Analyse des Indicateurs", icon = icon("magnifying-glass-chart"), indicateurs_ui("indicateurs", master_df_historique)),
              tabPanel("Socio-démographique", icon = icon("users"), socio_dem_ui("socio_dem", master_df_historique)),
              tabPanel("Historique & Évolutions", icon = icon("chart-line"), historique_ui("historique", master_df_historique)),
              tabPanel("Documentation", icon = icon("book"), documentation_content)
@@ -59,6 +60,7 @@ server <- function(input, output, session) {
   
   carte_server("carte", master_df_historique, map_ept, map_dep, palette_accessible)
   sectoriel_server("sectoriel", master_df_historique, palette_accessible)
+  indicateurs_server("indicateurs", master_df_historique, map_ept, map_dep)
   socio_dem_server("socio_dem", master_df_historique, socio_variable_labels)
   historique_server("historique", master_df_historique, palette_accessible)
   

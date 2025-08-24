@@ -350,10 +350,19 @@ generate_company_popup <- function(df_row) {
   return(htmltools::HTML(popup_html))
 }
 
+# --- MODIFICATION ---: Le style a été retiré pour permettre un positionnement
+# flexible du widget via les classes CSS de son conteneur parent (ex: flexbox).
 color_switch_ui <- function(id) {
-  shiny::div(style = "text-align: right; margin-top: 15px;",
-             shinyWidgets::switchInput(inputId = id, label = "Palette accessible", onLabel = "Oui", offLabel = "Non", value = FALSE,
-                                       size = "small", inline = TRUE, width = "auto"))
+  shinyWidgets::switchInput(
+    inputId = id, 
+    label = "Palette accessible", 
+    onLabel = "Oui", 
+    offLabel = "Non", 
+    value = FALSE,
+    size = "small", 
+    inline = TRUE, 
+    width = "auto"
+  )
 }
 
 

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Module: Carte & Territoires (Version Finale, Uniformisée et Corrigée)
+# Module: Carte & Territoires (Version avec UI affinée Thème 3 - Accordéons)
 # ==============================================================================
 
 carte_ui <- function(id, df) {
@@ -9,39 +9,84 @@ carte_ui <- function(id, df) {
     shiny::column(
       width = 3,
       bslib::card(
-        bslib::card_header("Filtres de la carte"),
+        bslib::card_header(
+          shiny::div(class = "d-flex justify-content-between align-items-center",
+                     "Filtres de la carte",
+                     bslib::tooltip(
+                       shiny::actionButton(ns("show_download_modal"), 
+                                           label = NULL, 
+                                           icon = shiny::icon("download"), 
+                                           class = "btn-sm"),
+                       "Exporter les données filtrées"
+                     )
+          )
+        ),
+        # --- MODIFICATION MAJEURE ---: Remplacement de la liste par un accordéon
         bslib::card_body(
-          shiny::sliderInput(ns("filtre_annee_carte"), "Année de l'Index :", min = min(df$annee), max = max(df$annee), value = max(df$annee), step = 1, sep = ""),
-          shiny::selectInput(ns("niveau_geo_carte"), "Niveau d'analyse :", choices = c("Départements", "Territoires (EPT)")),
-          shiny::selectizeInput(ns("selection_territoires"), "Sélectionner des territoires :", choices = NULL, multiple = TRUE, options = list(placeholder = 'Tous les territoires par défaut')),
-          shiny::hr(),
-          shiny::h4("Filtres sur les entreprises"),
-          shiny::selectizeInput(ns("filtre_secteur_carte"), "Secteur d'activité :", choices = c("Tous les secteurs", sort(unique(na.omit(df$secteur_activite)))), multiple = TRUE, selected = "Tous les secteurs"),
-          shiny::selectInput(ns("filtre_taille_carte"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
-          shiny::sliderInput(ns("filtre_score_carte"), "Filtrer par Score Egapro :", min = 0, max = 100, value = c(0, 100)),
-          shiny::hr(),
-          shiny::h4("Options d'affichage"),
-          shiny::radioButtons(ns("map_basemap"), "Choisir le fond de carte :", choices = list("Clair (Recommandé)" = "CartoDB.Positron", "Détaillé (Satellite)" = "Esri.WorldImagery", "Plan de rues" = "OpenStreetMap.Mapnik"), selected = "CartoDB.Positron"),
-          shiny::hr(),
-          shiny::uiOutput(ns("compteur_entreprises_ui")),
-          shiny::actionButton(ns("show_download_modal"), "Exporter les données filtrées", 
-                              icon = shiny::icon("download"), class = "btn-success w-100", style = "margin-top: 10px;")
+          padding = "10px", # On ajuste le padding pour l'accordéon
+          bslib::accordion(
+            open = c("Territoires", "Entreprises"), # On ouvre les 2 premiers par défaut
+            
+            bslib::accordion_panel(
+              title = "Filtres Territoriaux",
+              icon = shiny::icon("location-dot"),
+              value = "Territoires",
+          
+              
+              shiny::sliderInput(
+                ns("filtre_annee_carte"),
+                "Année de l'Index :",
+                min = min(df$annee),
+                max = max(df$annee),
+                value = max(df$annee),
+                step = 1,
+                sep = "",
+                ticks = FALSE
+              ),
+              shiny::selectInput(ns("niveau_geo_carte"), "Niveau d'analyse :", choices = c("Départements", "Territoires (EPT)")),
+              shiny::selectizeInput(ns("selection_territoires"), "Sélectionner des territoires :", choices = NULL, multiple = TRUE, options = list(placeholder = 'Tous les territoires par défaut'))
+            ),
+            
+            bslib::accordion_panel(
+              title = "Filtres sur les Entreprises",
+              icon = shiny::icon("building"),
+              value = "Entreprises",
+              
+              shiny::selectizeInput(ns("filtre_secteur_carte"), "Secteur d'activité :", choices = c("Tous les secteurs", sort(unique(na.omit(df$secteur_activite)))), multiple = TRUE, selected = "Tous les secteurs"),
+              shiny::selectInput(ns("filtre_taille_carte"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
+              shiny::sliderInput(ns("filtre_score_carte"), "Filtrer par Score Egapro :", min = 0, max = 100, value = c(0, 100))
+            ),
+            
+            bslib::accordion_panel(
+              title = "Options d'Affichage",
+              icon = shiny::icon("eye"),
+              value = "Affichage",
+              
+              shiny::radioButtons(ns("map_basemap"), "Choisir le fond de carte :", 
+                                  choices = list("Clair (Recommandé)" = "CartoDB.Positron", 
+                                                 "Détaillé (Satellite)" = "Esri.WorldImagery", 
+                                                 "Plan de rues" = "OpenStreetMap.Mapnik"), 
+                                  selected = "CartoDB.Positron")
+            )
+          )
         )
       )
     ),
     
     shiny::column(
       width = 9,
+      shiny::uiOutput(ns("kpi_carte_ui")),
+      
       bslib::card(
+        bslib::card_header("Carte des Territoires et Entreprises"),
         bslib::card_body(
           padding = 0,
-          leaflet::leafletOutput(ns("map"), height = "calc(100vh - 150px)")
+          leaflet::leafletOutput(ns("map"), height = "calc(100vh - 250px)")
         )
       )
     )
   )
 }
-
 carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_accessible) {
   # On s'assure que le package pour l'export Excel est disponible
   if (!require(writexl)) {
@@ -86,10 +131,38 @@ carte_server <- function(id, master_df_historique, map_ept, map_dep, palette_acc
       df %>% dplyr::filter(index >= input$filtre_score_carte[1] & index <= input$filtre_score_carte[2])
     })
     
-    # --- SORTIES UI ---
-    output$compteur_entreprises_ui <- shiny::renderUI({
-      n_entreprises <- nrow(points_filtres_carte())
-      shiny::tags$p(style="text-align: center; font-size: 1.1em; color: #333;", shiny::HTML(paste0("<strong>", format(n_entreprises, big.mark=" "), "</strong> entreprises affichées")))
+    
+    output$kpi_carte_ui <- shiny::renderUI({
+      
+      df_filtre <- points_filtres_carte()
+      shiny::req(df_filtre)
+      
+      n_entreprises <- nrow(df_filtre)
+      
+      score_moyen_pondere <- if (n_entreprises > 0) {
+        weighted.mean(df_filtre$index, df_filtre$poids, na.rm = TRUE)
+      } else {
+        NA
+      }
+      
+      shiny::fluidRow(
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Entreprises dans la sélection",
+                        value = scales::comma(n_entreprises),
+                        showcase = shiny::icon("building"),
+                        theme = "secondary"
+                      )
+        ),
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Score moyen pondéré",
+                        value = if (is.na(score_moyen_pondere)) "N/A" else round(score_moyen_pondere, 1),
+                        showcase = shiny::icon("balance-scale"),
+                        theme = "primary"
+                      )
+        )
+      )
     })
     
     # --- LOGIQUE CARTE ---

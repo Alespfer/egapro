@@ -1,5 +1,5 @@
 # ==============================================================================
-# Module: Socio-démographique (Version Finale Corrigée)
+# Module: Socio-démographique (Version CORRIGÉE avec KPIs)
 # ==============================================================================
 
 socio_dem_ui <- function(id, df) {
@@ -15,8 +15,8 @@ socio_dem_ui <- function(id, df) {
             label = "Année :",
             choices = sort(unique(df$annee)),
             selected = max(df$annee),
-            grid = TRUE,
-            width = "100%"
+            grid = FALSE,
+            width = "100%",
           ),
           shiny::selectInput(ns("socio_variable"), "Indicateur :",
                              choices = list("Structure emploi féminin" = c(`Part des femmes cadres` = "part_femmes_cadres", `Part des femmes prof. inter.` = "part_femmes_prof_inter"),
@@ -32,10 +32,10 @@ socio_dem_ui <- function(id, df) {
       bslib::card(
         bslib::card_header(shiny::uiOutput(ns("titre_socio_ui"))),
         bslib::card_body(
-          plotly::plotlyOutput(ns("plot_socio_interactif"), height = "550px"),
-          shiny::uiOutput(ns("corr_banner"))
+          plotly::plotlyOutput(ns("plot_socio_interactif"), height = "500px")
         )
       ),
+      shiny::uiOutput(ns("kpi_socio_dem_ui")),
       bslib::card(
         bslib::card_header("Données Moyennes des Territoires"),
         bslib::card_body(
@@ -66,14 +66,74 @@ socio_dem_server <- function(id, master_df_historique, socio_variable_labels) {
     })
     
     output$titre_socio_ui <- shiny::renderUI({ 
-      shiny::HTML(paste("Score Egapro moyen vs.", socio_variable_labels[input$socio_variable])) 
+      shiny::div(
+        shiny::h4("Corrélation : Score Egapro & Indicateur Social", 
+                  style = "margin-bottom: 0.2rem;"),
+        shiny::p(class = "text-muted", 
+                 style = "margin-top: 0; font-size: 0.9rem;",
+                 socio_variable_labels[input$socio_variable])
+      )
+    })
+    
+    output$kpi_socio_dem_ui <- shiny::renderUI({
+      df <- data_sd()
+      
+      if (nrow(df) < 3) {
+        return(
+          shiny::fluidRow(
+            shiny::column(width = 6, bslib::value_box("Coefficient (r)", "Données", showcase = icon("times"), theme = "secondary")),
+            shiny::column(width = 6, bslib::value_box("Significativité (p)", "insuffisantes", showcase = icon("times"), theme = "secondary"))
+          )
+        )
+      }
+      
+      ct <- stats::cor.test(df$socio_val, df$score_moyen)
+      r  <- ct$estimate
+      p  <- ct$p.value
+      
+      tendance <- dplyr::case_when(
+        r >  0.4 ~ "Positive marquée", r >  0.15 ~ "Positive faible",
+        r < -0.4 ~ "Négative marquée", r < -0.15 ~ "Négative faible",
+        TRUE     ~ "Quasi nulle"
+      )
+      
+      # --- CORRECTION ---: On choisit le NOM de l'icône, pas l'objet icône lui-même.
+      icon_name_p <- dplyr::case_when(p < 0.05 ~ "check", p < 0.10 ~ "exclamation-triangle", TRUE ~ "question")
+      
+      kpi_theme_p <- dplyr::case_when(p < 0.05 ~ "success", p < 0.10 ~ "warning", TRUE ~ "secondary")
+      signification_texte <- dplyr::case_when(
+        p < 0.05 ~ "Statistiquement significatif",
+        p < 0.10 ~ "Marginalement significatif",
+        TRUE     ~ "Non significatif"
+      )
+      
+      shiny::fluidRow(
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Coefficient de Corrélation (r)",
+                        value = format(round(r, 2), nsmall = 2),
+                        showcase = icon("right-left"),
+                        theme = "primary",
+                        p(tendance)
+                      )
+        ),
+        shiny::column(width = 6,
+                      bslib::value_box(
+                        title = "Significativité (p-value)",
+                        value = format.pval(p, digits = 2, eps = 0.001),
+                        # --- CORRECTION ---: On appelle la fonction icon() ici.
+                        showcase = shiny::icon(icon_name_p),
+                        theme = kpi_theme_p,
+                        p(signification_texte)
+                      )
+        )
+      )
     })
     
     output$plot_socio_interactif <- plotly::renderPlotly({
       df <- data_sd()
       shiny::validate(shiny::need(nrow(df) > 1, "Données insuffisantes pour tracer une relation."))
       
-      # On garde le ggplot de base pour ggrepel
       g <- ggplot2::ggplot(df, ggplot2::aes(x = socio_val, y = score_moyen, 
                                             size = n, 
                                             label = ept_name,
@@ -83,9 +143,8 @@ socio_dem_server <- function(id, master_df_historique, socio_variable_labels) {
                                               "<br><b>", stringr::str_trunc(socio_variable_labels[input$socio_variable], 30), " :</b> ", round(socio_val, 1), "%",
                                               "<br><b>Nb d'entreprises :</b> ", n
                                             ))) +
-        # LA CORRECTION EST ICI : On retire `inherit.aes` et on met l'aes directement
         ggplot2::geom_smooth(method = "lm", se = FALSE, 
-                             ggplot2::aes(weight = n, label = NULL, text = NULL), # On annule les aes non désirées
+                             ggplot2::aes(weight = n, label = NULL, text = NULL, size = NULL),
                              colour = "#DC3545", linetype = "dashed", linewidth = 0.8) +
         
         ggplot2::geom_point(colour = "#7B61FF", alpha = 0.7) +
@@ -98,65 +157,11 @@ socio_dem_server <- function(id, master_df_historique, socio_variable_labels) {
         ggplot2::theme_minimal(base_family = "Inter") +
         ggplot2::coord_cartesian(ylim = c(80, 100))
       
-      # Conversion en plotly
       plotly::ggplotly(g, tooltip = "text") %>%
         plotly::layout(
           legend = list(orientation = 'h', y = -0.2, x = 0.5, xanchor = 'center')
         ) %>%
         plotly::config(displayModeBar = FALSE)
-    })
-    
-    # --- BANNIÈRE DE CORRÉLATION AVEC NOUVELLES COULEURS SÉMANTIQUES ---
-    output$corr_banner <- shiny::renderUI({
-      df <- data_sd()
-      if (nrow(df) < 3) return(NULL)
-      
-      # Protection contre les erreurs si les données sont insuffisantes
-      if(any(is.na(df$socio_val)) || any(is.na(df$score_moyen))) return(NULL)
-      ct <- stats::cor.test(df$socio_val, df$score_moyen)
-      
-      r  <- round(ct$estimate, 2)
-      p  <- ct$p.value
-      
-      # --- NOUVELLE LOGIQUE DE COULEUR BASÉE SUR LES SEUILS STATISTIQUES ---
-      couleur_bg <- dplyr::case_when(
-        p < 0.05   ~ "#d1f3e0",  # Vert pastel pour "significatif"
-        p < 0.10   ~ "#fff3cd",  # Jaune pastel pour "marginalement significatif"
-        TRUE       ~ "#e9ecef"   # Gris neutre pour "non significatif"
-      )
-      couleur_text <- dplyr::case_when(
-        p < 0.05   ~ "#0a3622",  # Texte foncé pour le vert
-        p < 0.10   ~ "#664d03",  # Texte foncé pour le jaune
-        TRUE       ~ "#495057"   # Texte standard pour le gris
-      )
-      
-      tendance <- dplyr::case_when(
-        r >  0.4 ~ "positive marquée",
-        r >  0.15~ "positive faible",
-        r < -0.4 ~ "négative marquée",
-        r < -0.15~ "négative faible",
-        TRUE     ~ "quasi nulle"
-      )
-      
-      signification_texte <- dplyr::case_when(
-        p < 0.05   ~ "Tendance statistiquement significative.",
-        p < 0.10   ~ "Tendance marginalement significative.",
-        TRUE       ~ "Tendance non significative."
-      )
-      
-      shiny::div(
-        style = paste0(
-          "background-color:", couleur_bg, 
-          "; color:", couleur_text,
-          "; padding:12px; font-weight:600; border-radius:8px; margin-top:15px; text-align:center;"
-        ),
-        paste0(
-          "Corrélation de Pearson : ", r, 
-          " (p-value = ", formatC(p, digits = 3, format = "f"), "). ",
-          "Tendance ", tendance, ". ",
-          signification_texte
-        )
-      )
     })
     
     output$table_sd <- DT::renderDT({
