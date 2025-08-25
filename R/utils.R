@@ -279,37 +279,42 @@ create_socio_features <- function(df_pop_structure, df_ic, df_act5) {
 #' et fusionne les arrondissements de Paris en une seule commune "Paris" (75056).
 #' @return Un objet sf contenant les polygones des communes, avec Paris unifié.
 load_and_prepare_map <- function() {
-  message("--- Chargement et préparation du fond de carte ---")
+  message("--- Chargement et préparation du fond de carte (Île-de-France complète) ---")
+  
+  # 1. Chargement de la table de correspondance Commune -> Zone d'Emploi
+  path_ze_ref <- "data/raw/commune_ze_2020.xlsx"
+  if (!file.exists(path_ze_ref)) {
+    stop("Fichier 'commune_ze_2020.xlsx' introuvable dans data/raw/. Veuillez le télécharger depuis le site de l'INSEE.")
+  }
+  # --- CORRECTION ---: On utilise read_excel car le fichier est un XLSX
+  ze_ref <- readxl::read_excel(path_ze_ref) %>%
+    dplyr::select(com_code = CODGEO, ze_code = ZE2020, ze_name = LIBZE2020)
+  
+  # 2. Chargement du fond de carte des communes d'Île-de-France
   myURL <- "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune-arrondissement-municipal-millesime/exports/geojson?lang=fr&refine=reg_name%3A%22%C3%8Ele-de-France%22&refine=year%3A%222020%22"
   
   map <- sf::st_read(myURL, quiet = TRUE) %>%
-    dplyr::filter(dep_code %in% c("75", "92", "93", "94")) %>%
     dplyr::mutate(
-      # --- CORRECTION DÉFINITIVE ---
-      # 1. On identifie les lignes qui sont des arrondissements parisiens.
       is_paris_arrondissement = stringr::str_starts(com_arm_code, "751"),
-      
-      # 2. On remplace à la fois le code ET le nom pour ces lignes.
       com_arm_code = ifelse(is_paris_arrondissement, "75056", com_arm_code),
       com_arm_name = ifelse(is_paris_arrondissement, "Paris", com_arm_name),
-      
-      # 3. On s'assure que toutes les colonnes sont des caractères simples.
       dplyr::across(c(com_arm_code, com_arm_name, ept_code, ept_name, dep_code, dep_name), as.character)
     ) %>%
     dplyr::select(com_code = com_arm_code, com_name = com_arm_name, ept_code, ept_name, dep_code, dep_name, geometry)
   
-  # La logique pour le nom de l'EPT de Paris reste la même
   map$ept_name <- ifelse(map$ept_name == "character(0)" | map$com_code == "75056", "Ville de Paris", map$ept_name)
   map$ept_code <- ifelse(map$ept_name == "Ville de Paris", "T1", map$ept_code)
   
-  # Maintenant que toutes les lignes de Paris ont le même com_code ET com_name,
-  # la fusion va fonctionner parfaitement.
   map <- map %>%
     dplyr::group_by(com_code, com_name, ept_code, ept_name, dep_code, dep_name) %>%
     dplyr::summarise(geometry = sf::st_union(geometry), .groups = "drop")
   
-  message("✅ Fond de carte communal OK : ", nrow(map), " communes (Paris unifié).")
-  return(map)
+  # 3. Enrichissement du fond de carte avec les Zones d'Emploi
+  map_enriched <- map %>%
+    dplyr::left_join(ze_ref, by = "com_code")
+  
+  message("✅ Fond de carte communal IDF OK : ", nrow(map_enriched), " communes (Paris unifié) enrichies avec les Zones d'Emploi.")
+  return(map_enriched)
 }
 
 
@@ -403,4 +408,86 @@ check_data_freshness <- function(file_path = "data_shiny/master_df_historique.RD
       message = message_text
     )
   )
+}
+
+
+
+
+
+
+
+# --- AJOUT ---: Procédure complète de mise à jour des données
+run_data_update_pipeline <- function() {
+  
+  # Utilise `shiny::withProgress` pour montrer une barre de progression dans l'UI
+  shiny::withProgress(message = 'Mise à jour des données en cours...', value = 0, {
+    
+    # Étape 1: Importation
+    shiny::incProgress(0.1, detail = "Téléchargement des données Egapro...")
+    raw_egapro <- import_latest_egapro()
+    
+    shiny::incProgress(0.1, detail = "Téléchargement des données SIRENE...")
+    raw_sirene <- import_sirene_idf()
+    
+    shiny::incProgress(0.1, detail = "Lecture des données INSEE locales...")
+    zip_path_pop_structure <- "data/raw/base-cc-evol-struct-pop-2021_xlsx.zip"
+    zip_path_activite_reside <- "data/raw/base-ic-activite-residents-2021_xlsx (1).zip"
+    zip_path_act5 <- "data/raw/TD_ACT5_2021_xlsx.zip"
+    raw_pop_structure <- import_xlsx_from_zip(zip_path_pop_structure)
+    raw_ic_activite <- import_xlsx_from_zip(zip_path_activite_reside)
+    raw_act5 <- import_xlsx_from_zip(zip_path_act5, skip = 9) %>% rename_to_com()
+    
+    # Étape 2: Préparation
+    shiny::incProgress(0.2, detail = "Préparation et nettoyage des données...")
+    egapro_prepared <- prepare_egapro_data(raw_egapro)
+    sirene_clean <- clean_sirene_data(raw_sirene)
+    sirene_clean <- sirene_clean %>%
+      dplyr::mutate(
+        code_commune = if_else(stringr::str_starts(code_commune, "751"), "75056", code_commune)
+      )
+    communes_features <- create_socio_features(
+      df_pop_structure = raw_pop_structure,
+      df_ic = raw_ic_activite,
+      df_act5 = raw_act5
+    )
+    paris_commune_data <- communes_features %>% filter(code_commune == "75056")
+    
+    if(nrow(paris_commune_data) > 0) {
+      codes_arrondissements <- sprintf("751%02d", 1:20)
+      paris_arrondissements_data <- paris_commune_data[rep(1, 20), ] %>%
+        mutate(code_commune = codes_arrondissements)
+      communes_features <- bind_rows(communes_features, paris_arrondissements_data)
+    }
+    
+    # Étape 3: Géographie
+    shiny::incProgress(0.1, detail = "Préparation des données géographiques...")
+    map_com_prepared <- load_and_prepare_map()
+    
+    # Étape 4: Création de la table finale
+    shiny::incProgress(0.1, detail = "Création de la table de données finale...")
+    master_df_historique <- egapro_prepared %>%
+      inner_join(sirene_clean, by = "siren") %>%
+      inner_join(st_drop_geometry(map_com_prepared), by = c("code_commune" = "com_code")) %>%
+      left_join(communes_features, by = "code_commune")
+    
+    # Étape 5: Sauvegarde des fichiers
+    shiny::incProgress(0.2, detail = "Sauvegarde des fichiers pour l'application...")
+    output_dir <- "data_shiny"
+    if (!dir.exists(output_dir)) dir.create(output_dir)
+    
+    saveRDS(master_df_historique, file.path(output_dir, "master_df_historique.RDS"))
+    saveRDS(map_com_prepared, file.path(output_dir, "map_com.RDS"))
+    
+    map_ept_prepared <- aggregate_map(map_com_prepared, level = "ept")
+    saveRDS(map_ept_prepared, file.path(output_dir, "map_ept.RDS"))
+    
+    map_dep_prepared <- aggregate_map(map_com_prepared, level = "dep")
+    saveRDS(map_dep_prepared, file.path(output_dir, "map_dep.RDS"))
+    
+    map_ze_prepared <- aggregate_map(map_com_prepared, level = "ze")
+    saveRDS(map_ze_prepared, file.path(output_dir, "map_ze.RDS"))
+    
+    shiny::incProgress(0.1, detail = "Mise à jour terminée !")
+    Sys.sleep(2) # Petite pause pour que l'utilisateur voie le message final
+  })
 }

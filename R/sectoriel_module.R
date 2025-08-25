@@ -1,5 +1,5 @@
 # ==============================================================================
-# Module: Analyse Sectorielle (Version CORRIGÉE)
+# Module: Analyse Sectorielle (Version finale avec infobulles)
 # ==============================================================================
 
 sectoriel_ui <- function(id, df) {
@@ -11,22 +11,39 @@ sectoriel_ui <- function(id, df) {
       bslib::card(
         bslib::card_header("Filtres de l'analyse"),
         bslib::card_body(
-          shinyWidgets::sliderTextInput(
-            inputId = ns("filtre_annee_secteur"),
-            label = "Année :",
-            choices = sort(unique(df$annee)),
-            selected = max(df$annee),
-            grid = FALSE,
-            width = "100%"
-          ),
-          shiny::selectInput(ns("filtre_taille_secteur"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
-          shiny::selectizeInput(ns("filtre_secteurs"), "Secteur(s) d'activité :", choices = sort(unique(na.omit(df$secteur_activite))), multiple = TRUE, options  = list(placeholder = "Top/Bottom 5", maxItems = 15)),
-          shiny::tags$small(
-            class = "text-muted",
-            shiny::icon("info-circle"), 
-            "L'affichage par défaut montre les 5 meilleurs et 5 moins bons secteurs ayant au moins 10 entreprises déclarantes."
-          ),
-          shiny::checkboxInput(ns("afficher_tous_secteurs"), "Afficher tous les secteurs", value = FALSE)
+          padding = "10px", # On garde le padding pour l'harmonie
+          # --- CORRECTION FINALE ---: On utilise l'accordéon mais on le force à rester ouvert
+          bslib::accordion(
+            open = TRUE, # L'ordre crucial : les panneaux ne peuvent pas être fermés
+            bslib::accordion_panel(
+              title = "Options de Filtrage",
+              icon = shiny::icon("filter"),
+              
+              shinyWidgets::sliderTextInput(
+                inputId = ns("filtre_annee_secteur"),
+                label = "Année :",
+                choices = sort(unique(df$annee)),
+                selected = max(df$annee),
+                grid = TRUE,
+                width = "100%"
+              ),
+              shiny::div(class = "d-flex align-items-center",
+                         shiny::selectInput(ns("filtre_taille_secteur"), "Taille d'entreprise :", choices = c("Toutes les tailles", unique(df$tranche_effectifs)), width = "90%"),
+                         bslib::tooltip(
+                           shiny::icon("info-circle"),
+                           "L'Index est obligatoire pour les entreprises de 50 salariés et plus. Le calcul de certains indicateurs varie selon la tranche d'effectifs.",
+                           placement = "right"
+                         )
+              ),
+              shiny::selectizeInput(ns("filtre_secteurs"), "Secteur(s) d'activité :", choices = sort(unique(na.omit(df$secteur_activite))), multiple = TRUE, options  = list(placeholder = "Top/Bottom 5", maxItems = 15)),
+              shiny::tags$small(
+                class = "text-muted",
+                shiny::icon("info-circle"), 
+                "L'affichage par défaut montre les 5 meilleurs et 5 moins bons secteurs ayant au moins 10 entreprises déclarantes."
+              ),
+              shiny::checkboxInput(ns("afficher_tous_secteurs"), "Afficher tous les secteurs", value = FALSE)
+            )
+          )
         )
       )
     ),
@@ -57,7 +74,6 @@ sectoriel_ui <- function(id, df) {
 
 sectoriel_server <- function(id, master_df_historique, palette_accessible, shared_state) {
   shiny::moduleServer(id, function(input, output, session) {
-    # ... (logique de data_secteur_filtree inchangée) ...
     data_secteur_filtree <- shiny::reactive({
       df <- master_df_historique %>%
         dplyr::filter(annee == input$filtre_annee_secteur, !is.na(secteur_activite))
@@ -79,7 +95,6 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible, share
         dplyr::filter(secteur_activite %in% c(utils::head(sector_summary$secteur_activite, 5), utils::tail(sector_summary$secteur_activite, 5)))
     })
     
-    # ... (logique des kpi inchangée) ...
     output$kpi_sectoriel_ui <- shiny::renderUI({
       df_filtre <- data_secteur_filtree()
       shiny::validate(shiny::need(nrow(df_filtre) > 0, "Aucune donnée à afficher pour les filtres sélectionnés."))
@@ -121,19 +136,15 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible, share
     output$plot_secteur <- plotly::renderPlotly({
       df_plot <- data_secteur_filtree()
       shiny::req(nrow(df_plot) > 0, cancelOutput = TRUE)
-      
       sector_summary <- df_plot %>%
         dplyr::group_by(secteur_activite) %>%
         dplyr::summarise(score_median = stats::median(index, na.rm = TRUE), .groups = "drop") %>%
         dplyr::arrange(score_median)
-      
-      # ... (logique de palette inchangée) ...
       default_palette <- c("#7B61FF", "#495057", "#20C997", "#FD7E14", "#FFC107")
       palette_a_utiliser <- if (isTRUE(input$color_switch_secteur)) palette_accessible else default_palette
       n_cols <- dplyr::n_distinct(sector_summary$secteur_activite)
       palette_cols <- rep(palette_a_utiliser, length.out = n_cols)
       sector_summary$col <- palette_cols
-      
       plot_height <- max(400, 35 * nrow(sector_summary))
       left_margin <- max(150, 7 * max(nchar(sector_summary$secteur_activite)))
       plot_height_react(plot_height)
@@ -144,7 +155,6 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible, share
                                         key = secteur_activite,
                                         text = sprintf("<b>Secteur :</b> %s<br><b>Médiane :</b> %.1f",
                                                        secteur_activite, score_median))) +
-        # ... (geoms inchangés) ...
         ggplot2::geom_segment(ggplot2::aes(x = 0, xend = score_median, yend = reorder(stringr::str_wrap(secteur_activite, 40), score_median)), linewidth = 1.5, colour = "#CED4DA") +
         ggplot2::geom_point(size = 7, aes(fill = col), shape = 21, colour = "#495057", stroke = 1) +
         ggplot2::geom_vline(xintercept = 85, linetype = "dashed", linewidth = 1, colour = "#DC3545") +
@@ -158,14 +168,15 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible, share
           axis.text.y = ggplot2::element_text(face = "bold")
         )
       
-      # --- CORRECTION ---: L'argument 'height' est déplacé ici.
-      g %>%
+      p <- g %>%
         plotly::ggplotly(tooltip = "text", source = "plot_secteur_source", height = plot_height) %>%
         plotly::layout(margin = list(l = left_margin, t = 30, r = 20, b = 40)) %>%
         plotly::config(displayModeBar = FALSE)
+      
+      p <- p %>% plotly::event_register("plotly_click")
+      p
     })
     
-    # ... (logique de l'observeEvent pour l'interactivité inchangée) ...
     shiny::observeEvent(plotly::event_data("plotly_click", source = "plot_secteur_source"), {
       clicked_sector <- plotly::event_data("plotly_click", source = "plot_secteur_source")$key
       shiny::req(clicked_sector)
@@ -178,7 +189,6 @@ sectoriel_server <- function(id, master_df_historique, palette_accessible, share
       shiny::updateNavbarPage(session, "main_navbar", selected = "Carte & Territoires")
     })
     
-    # ... (logique de la table inchangée) ...
     output$table_secteur <- DT::renderDataTable({
       summary_df <- data_secteur_filtree() %>%
         dplyr::group_by(secteur_activite) %>%

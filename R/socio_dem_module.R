@@ -2,6 +2,10 @@
 # Module: Socio-démographique (Version CORRIGÉE avec KPIs)
 # ==============================================================================
 
+# ==============================================================================
+# Module: Socio-démographique (Version finale avec accordéon statique)
+# ==============================================================================
+
 socio_dem_ui <- function(id, df) {
   ns <- shiny::NS(id)
   shiny::fluidRow(
@@ -10,20 +14,30 @@ socio_dem_ui <- function(id, df) {
       bslib::card(
         bslib::card_header("Filtres de l'analyse"),
         bslib::card_body(
-          shinyWidgets::sliderTextInput(
-            inputId = ns("filtre_annee_socio"),
-            label = "Année :",
-            choices = sort(unique(df$annee)),
-            selected = max(df$annee),
-            grid = FALSE,
-            width = "100%",
-          ),
-          shiny::selectInput(ns("socio_variable"), "Indicateur :",
-                             choices = list("Structure emploi féminin" = c(`Part des femmes cadres` = "part_femmes_cadres", `Part des femmes prof. inter.` = "part_femmes_prof_inter"),
-                                            "Mixité & activité" = c(`Taux de féminisation des cadres` = "taux_femmes_parmi_cadres", `Taux d'activité des femmes 15-64`= "taux_activite_femmes"))
-                             , selected = "part_femmes_cadres"),
-          shiny::selectizeInput(ns("filtre_ept_sd"), "Territoires (EPT) :", choices  = sort(unique(df$ept_name)), multiple = TRUE, options = list(placeholder = "Tous les territoires")),
-          shiny::uiOutput(ns("alert_paris_sd"))      
+          padding = "10px",
+          # --- AJOUT ---: Implémentation de l'accordéon statique
+          bslib::accordion(
+            open = TRUE,
+            bslib::accordion_panel(
+              title = "Options de Filtrage",
+              icon = shiny::icon("filter"),
+              
+              shinyWidgets::sliderTextInput(
+                inputId = ns("filtre_annee_socio"),
+                label = "Année :",
+                choices = sort(unique(df$annee)),
+                selected = max(df$annee),
+                grid = TRUE,
+                width = "100%"
+              ),
+              shiny::selectInput(ns("socio_variable"), "Indicateur :",
+                                 choices = list("Structure emploi féminin" = c(`Part des femmes cadres` = "part_femmes_cadres", `Part des femmes prof. inter.` = "part_femmes_prof_inter"),
+                                                "Mixité & activité" = c(`Taux de féminisation des cadres` = "taux_femmes_parmi_cadres", `Taux d'activité des femmes 15-64`= "taux_activite_femmes"))
+                                 , selected = "part_femmes_cadres"),
+              shiny::selectizeInput(ns("filtre_ept_sd"), "Territoires (EPT) :", choices  = sort(unique(df$ept_name)), multiple = TRUE, options = list(placeholder = "Tous les territoires")),
+              shiny::uiOutput(ns("alert_paris_sd"))      
+            )
+          )
         )
       )
     ),

@@ -51,10 +51,14 @@ need     <- shiny::need
 master_df_historique <- readRDS("data_shiny/master_df_historique.RDS")
 map_ept <- readRDS("data_shiny/map_ept.RDS")
 map_dep <- readRDS("data_shiny/map_dep.RDS")
+map_ze <- readRDS("data_shiny/map_ze.RDS") # <-- AJOUTER CETTE LIGNE
+
 
 # -- Pré-calculs --
 map_ept <- sf::st_transform(map_ept, crs = 4326)
 map_dep <- sf::st_transform(map_dep, crs = 4326)
+map_ze <- sf::st_transform(map_ze, crs = 4326) # <-- AJOUTER CETTE LIGNE
+
 eff_key <- c("50 à 250" = 150, "251 à 999" = 625, "1000 et plus" = 1500)
 master_df_historique <- master_df_historique |>
   dplyr::mutate(poids = unname(eff_key[tranche_effectifs]))
@@ -80,4 +84,13 @@ indicateur_labels <- c(
   "Écart de Promotions (sur 15)" = "note_promotion",
   "Augmentation au retour de congé maternité (sur 15)" = "note_conge_mat",
   "Part de femmes dans les 10 plus hautes rémunérations (sur 10)" = "note_hautes_rem"
+)
+
+# --- AJOUT ---: Descriptions détaillées pour les infobulles du module Indicateurs
+indicateur_descriptions <- list(
+  "note_remuneration" = "<strong>Écart de rémunération (40 pts) :</strong> Compare la rémunération moyenne des femmes et des hommes, par tranche d'âge et par catégorie de postes équivalents. C'est l'indicateur avec le plus de poids dans l'Index.",
+  "note_augmentation" = "<strong>Écart d'augmentations individuelles (20 pts) :</strong> Compare le pourcentage de femmes et d'hommes ayant bénéficié d'une augmentation individuelle (hors promotions).",
+  "note_promotion" = "<strong>Écart de promotions (15 pts) :</strong> Compare le pourcentage de femmes et d'hommes ayant été promus. Cet indicateur ne concerne que les entreprises de plus de 250 salariés.",
+  "note_conge_mat" = "<strong>Augmentations au retour de congé maternité (15 pts) :</strong> Vérifie que les salariées, à leur retour de congé maternité, ont bien bénéficié des augmentations (générales et individuelles) perçues par les autres salariés pendant leur absence.",
+  "note_hautes_rem" = "<strong>Hautes rémunérations (10 pts) :</strong> Mesure la parité parmi les 10 salariés ayant perçu les plus hautes rémunérations dans l'entreprise."
 )

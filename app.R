@@ -1,15 +1,8 @@
 # ==============================================================================
-# app.R : Point d'entrée de l'application Shiny
-# Rôle :
-#   1. Définir la structure de l'interface (UI) en assemblant les modules.
-#   2. Lancer la logique du serveur (Server) en appelant les modules.
-#   3. Lancer l'application.
-#
-# Toute la configuration est gérée par le fichier global.R.
+# app.R : Point d'entrée de l'application (Version CORRIGÉE avec interactivité)
 # ==============================================================================
 
 source("global.R", local = TRUE)
-
 
 # ==============================================================================
 # INTERFACE UTILISATEUR (UI)
@@ -17,20 +10,20 @@ source("global.R", local = TRUE)
 ui <- fluidPage(
   theme = bslib::bs_theme(
     version = 5,
-    bg = "#F0F2F5",       # Fond gris ardoise clair
-    fg = "#1E2A3A",       # Texte bleu ardoise sombre
-    primary = "#7B61FF",  # Accent violet vif
-    secondary = "#495057",# Gris neutre pour les éléments secondaires
-    base_font = bslib::font_google("Inter", local = TRUE), # Une police moderne et très lisible
-    "font-size-base" = "0.95rem" # On ajuste légèrement la taille de la police
+    bg = "#F0F2F5",
+    fg = "#1E2A3A",
+    primary = "#7B61FF",
+    secondary = "#495057",
+    base_font = bslib::font_google("Inter", local = TRUE),
+    "font-size-base" = "0.95rem"
   ),
   tags$head(tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")),
   titlePanel("Baromètre de la Parité en Entreprise – Territoires du Grand Paris"),
   
   shiny::uiOutput("data_freshness_banner_ui"),
   
-  
-  navbarPage("Navigation",
+  # On ajoute un ID à la barre de navigation pour la contrôler
+  navbarPage("Navigation", id = "main_navbar",
              tabPanel("Carte & Territoires", icon = icon("map-marked-alt"), carte_ui("carte", master_df_historique)),
              tabPanel("Analyse Sectorielle", icon = icon("industry"), sectoriel_ui("sectoriel", master_df_historique)),
              tabPanel("Analyse des Indicateurs", icon = icon("magnifying-glass-chart"), indicateurs_ui("indicateurs", master_df_historique)),
@@ -45,7 +38,6 @@ ui <- fluidPage(
 # ==============================================================================
 server <- function(input, output, session) {
   
-  # --- AJOUTER CE BLOC AU DÉBUT DU SERVEUR ---
   output$data_freshness_banner_ui <- shiny::renderUI({
     if (!data_status$is_fresh) {
       shiny::div(class = "alert alert-warning", role = "alert",
@@ -58,9 +50,27 @@ server <- function(input, output, session) {
     }
   })
   
-  carte_server("carte", master_df_historique, map_ept, map_dep, palette_accessible)
-  sectoriel_server("sectoriel", master_df_historique, palette_accessible)
-  indicateurs_server("indicateurs", master_df_historique, map_ept, map_dep)
+  # --- AJOUT ---: Logique pour le bouton de mise à jour
+  shiny::observeEvent(input$trigger_data_update, {
+    # On appelle notre nouvelle fonction de mise à jour
+    run_data_update_pipeline()
+    
+    # On notifie l'utilisateur que c'est terminé
+    shiny::showNotification("Mise à jour des données terminée avec succès. Rechargement de l'application...", 
+                            type = "success", duration = 5)
+    
+    # On recharge la session pour que l'application utilise les nouvelles données
+    session$reload()
+  })
+  
+  # --- CORRECTION ---: Création de l'objet de communication et passage aux modules
+  shared_state <- shiny::reactiveValues()
+  
+  carte_server("carte", master_df_historique, map_ept, map_dep, map_ze, palette_accessible, shared_state)
+  sectoriel_server("sectoriel", master_df_historique, palette_accessible, shared_state)
+  
+  # Les autres modules n'ont pas besoin de l'état partagé
+  indicateurs_server("indicateurs", master_df_historique, map_ept, map_dep, map_ze)
   socio_dem_server("socio_dem", master_df_historique, socio_variable_labels)
   historique_server("historique", master_df_historique, palette_accessible)
   

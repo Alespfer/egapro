@@ -1,10 +1,9 @@
 # ==============================================================================
-# Module: Analyse des Indicateurs (Version finale avec export agrégé)
+# Module: Analyse des Indicateurs (Version finale CORRIGÉE et ROBUSTE)
 # ==============================================================================
 
 indicateurs_ui <- function(id, df) {
   ns <- shiny::NS(id)
-  
   shiny::fluidRow(
     shiny::column(
       width = 3,
@@ -22,12 +21,19 @@ indicateurs_ui <- function(id, df) {
           )
         ),
         bslib::card_body(
+          padding = "10px",
+          # --- AJOUT ---: Implémentation de l'accordéon statique
+          bslib::accordion(
+            open = TRUE,
+            bslib::accordion_panel(
+              title = "Options de Filtrage",
+              icon = shiny::icon("filter"),
           shinyWidgets::sliderTextInput(
             inputId = ns("filtre_annee_indicateur"),
             label = "Année :",
             choices = sort(unique(df$annee)),
             selected = max(df$annee),
-            grid = FALSE,
+            grid = TRUE,
             width = "100%"
           ),
           shiny::selectInput(
@@ -36,12 +42,15 @@ indicateurs_ui <- function(id, df) {
             choices = indicateur_labels,
             selected = "note_remuneration"
           ),
+          shiny::uiOutput(ns("indicateur_description_ui")),
           shiny::selectInput(
             inputId = ns("niveau_geo_indicateur"),
             label = "Niveau d'analyse territorial :",
-            choices = c("Départements", "Territoires (EPT)"),
+            choices = c("Départements", "Territoires (EPT)", "Zones d'emploi"),
             selected = "Territoires (EPT)"
           )
+        )
+      )
         )
       )
     ),
@@ -65,23 +74,28 @@ indicateurs_ui <- function(id, df) {
   )
 }
 
-indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
+indicateurs_server <- function(id, master_df_historique, map_ept, map_dep, map_ze) {
   shiny::moduleServer(id, function(input, output, session) {
     
-    # Réactif de base filtrant les données brutes
     data_filtree <- shiny::reactive({
       shiny::req(input$select_indicateur)
       master_df_historique %>%
         dplyr::filter(annee == input$filtre_annee_indicateur, !is.na(.data[[input$select_indicateur]]))
     })
     
-    # --- AJOUT: Réactifs pour les données agrégées ---
+    output$indicateur_description_ui <- shiny::renderUI({
+      shiny::req(input$select_indicateur)
+      description <- indicateur_descriptions[[input$select_indicateur]]
+      shiny::div(
+        style = "font-size: 0.85em; background-color: #f8f9fa; border-radius: 5px; padding: 10px; margin-top: -10px; margin-bottom: 15px;",
+        shiny::HTML(description)
+      )
+    })
     
-    # Données agrégées pour la carte
     data_agg_territoriale <- shiny::reactive({
-      group_var <- if (input$niveau_geo_indicateur == "Départements") "dep_name" else "ept_name"
-      
+      group_var <- if (input$niveau_geo_indicateur == "Départements") "dep_name" else if (input$niveau_geo_indicateur == "Territoires (EPT)") "ept_name" else "ze_name"
       data_filtree() %>%
+        dplyr::filter(!is.na(.data[[group_var]])) %>%
         dplyr::group_by(Territoire = .data[[group_var]]) %>%
         dplyr::summarise(
           `Note Moyenne` = mean(.data[[input$select_indicateur]], na.rm = TRUE),
@@ -90,7 +104,6 @@ indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
         )
     })
     
-    # Données agrégées pour le graphique sectoriel
     data_agg_sectorielle <- shiny::reactive({
       data_filtree() %>%
         dplyr::group_by(Secteur = secteur_activite) %>%
@@ -102,12 +115,22 @@ indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
         dplyr::filter(`Nombre d'entreprises` >= 10)
     })
     
-    # --- Logique de la Carte (utilise maintenant le réactif agrégé) ---
     output$map_indicateur <- leaflet::renderLeaflet({
       agg_data <- data_agg_territoriale()
-      group_var <- if (input$niveau_geo_indicateur == "Départements") "dep_name" else "ept_name"
       
-      map_final <- (if (input$niveau_geo_indicateur == "Départements") map_dep else map_ept) %>%
+      # --- CORRECTION FINALE ---: Stratégie de variable unique et claire
+      if (input$niveau_geo_indicateur == "Départements") {
+        map_shape <- map_dep
+        group_var <- "dep_name"
+      } else if (input$niveau_geo_indicateur == "Territoires (EPT)") {
+        map_shape <- map_ept
+        group_var <- "ept_name"
+      } else {
+        map_shape <- map_ze
+        group_var <- "ze_name"
+      }
+      
+      map_final <- map_shape %>%
         dplyr::left_join(agg_data, by = setNames("Territoire", group_var)) %>%
         dplyr::filter(!is.na(`Note Moyenne`))
       
@@ -126,12 +149,9 @@ indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
         leaflet::addLegend(pal = pal, values = ~`Note Moyenne`, title = "Note Moyenne", position = "bottomright")
     })
     
-    # --- Logique du Graphique Sectoriel (utilise maintenant le réactif agrégé) ---
     output$plot_sectoriel_indicateur <- plotly::renderPlotly({
       summary_secteur <- data_agg_sectorielle() %>% dplyr::arrange(`Note Moyenne`)
-      
       shiny::validate(shiny::need(nrow(summary_secteur) > 0, "Pas assez de données sectorielles à afficher (seuil de 10 entreprises min. par secteur)."))
-      
       indicateur_nom <- names(indicateur_labels)[indicateur_labels == input$select_indicateur]
       max_points <- as.numeric(stringr::str_extract(indicateur_nom, "\\d+"))
       
@@ -154,8 +174,6 @@ indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
         plotly::config(displayModeBar = FALSE)
     })
     
-    # --- NOUVELLE LOGIQUE D'EXPORT MULTI-CHOIX ---
-    
     shiny::observeEvent(input$show_download_modal, {
       shiny::showModal(shiny::modalDialog(
         title = "Exporter les Données Agrégées",
@@ -176,40 +194,22 @@ indicateurs_server <- function(id, master_df_historique, map_ept, map_dep) {
       ))
     })
     
-    # Gestionnaires pour les données territoriales
     output$download_terr_csv <- shiny::downloadHandler(
-      filename = function() {
-        paste0("agregation_territoriale_", input$select_indicateur, "_", Sys.Date(), ".csv")
-      },
-      content = function(file) {
-        utils::write.csv(data_agg_territoriale(), file, row.names = FALSE, fileEncoding = "UTF-8")
-      }
+      filename = function() { paste0("agregation_territoriale_", input$select_indicateur, "_", Sys.Date(), ".csv") },
+      content = function(file) { utils::write.csv(data_agg_territoriale(), file, row.names = FALSE, fileEncoding = "UTF-8") }
     )
     output$download_terr_excel <- shiny::downloadHandler(
-      filename = function() {
-        paste0("agregation_territoriale_", input$select_indicateur, "_", Sys.Date(), ".xlsx")
-      },
-      content = function(file) {
-        writexl::write_xlsx(data_agg_territoriale(), file)
-      }
+      filename = function() { paste0("agregation_territoriale_", input$select_indicateur, "_", Sys.Date(), ".xlsx") },
+      content = function(file) { writexl::write_xlsx(data_agg_territoriale(), file) }
     )
     
-    # Gestionnaires pour les données sectorielles
     output$download_sec_csv <- shiny::downloadHandler(
-      filename = function() {
-        paste0("agregation_sectorielle_", input$select_indicateur, "_", Sys.Date(), ".csv")
-      },
-      content = function(file) {
-        utils::write.csv(data_agg_sectorielle(), file, row.names = FALSE, fileEncoding = "UTF-8")
-      }
+      filename = function() { paste0("agregation_sectorielle_", input$select_indicateur, "_", Sys.Date(), ".csv") },
+      content = function(file) { utils::write.csv(data_agg_sectorielle(), file, row.names = FALSE, fileEncoding = "UTF-8") }
     )
     output$download_sec_excel <- shiny::downloadHandler(
-      filename = function() {
-        paste0("agregation_sectorielle_", input$select_indicateur, "_", Sys.Date(), ".xlsx")
-      },
-      content = function(file) {
-        writexl::write_xlsx(data_agg_sectorielle(), file)
-      }
+      filename = function() { paste0("agregation_sectorielle_", input$select_indicateur, "_", Sys.Date(), ".xlsx") },
+      content = function(file) { writexl::write_xlsx(data_agg_sectorielle(), file) }
     )
     
   })

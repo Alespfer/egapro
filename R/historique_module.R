@@ -11,12 +11,22 @@ historique_ui <- function(id, df) {
       bslib::card(
         bslib::card_header("Filtres de l'analyse"),
         bslib::card_body(
-          shiny::selectInput(ns("filtre_taille_historique"), "Taille d'entreprise :", 
-                             choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
-          shiny::selectizeInput(ns("filtre_ept_historique"), "Choisir un ou plusieurs territoire(s) :", 
-                                choices = sort(unique(df$ept_name)), 
-                                selected = c("Ville de Paris", "Grand Paris Seine Ouest"), 
-                                multiple = TRUE)
+          padding = "10px",
+          # --- AJOUT ---: Implémentation de l'accordéon statique
+          bslib::accordion(
+            open = TRUE,
+            bslib::accordion_panel(
+              title = "Options de Filtrage",
+              icon = shiny::icon("filter"),
+              
+              shiny::selectInput(ns("filtre_taille_historique"), "Taille d'entreprise :", 
+                                 choices = c("Toutes les tailles", unique(df$tranche_effectifs))),
+              shiny::selectizeInput(ns("filtre_ept_historique"), "Choisir un ou plusieurs territoire(s) :", 
+                                    choices = sort(unique(df$ept_name)), 
+                                    selected = c("Ville de Paris", "Grand Paris Seine Ouest"), 
+                                    multiple = TRUE)
+            )
+          )
         )
       )
     ),
@@ -25,14 +35,12 @@ historique_ui <- function(id, df) {
       width = 9,
       shiny::uiOutput(ns("kpi_historique_ui")),
       bslib::card(
-        # --- MODIFICATION ---: Le header contient maintenant le titre et le switch
         bslib::card_header(
           shiny::div(class = "d-flex justify-content-between align-items-center",
                      "Évolution Comparée des Scores Egapro",
                      color_switch_ui(ns("color_switch_historique"))
           )
         ),
-        # --- MODIFICATION ---: Le body ne contient plus que le graphique
         bslib::card_body(
           plotly::plotlyOutput(ns("plot_historique_interactif"), height = "450px")
         )
@@ -46,7 +54,6 @@ historique_ui <- function(id, df) {
     )
   )
 }
-
 # Le serveur est celui que tu as fourni, il est déjà parfait.
 historique_server <- function(id, master_df_historique, palette_accessible) {
   shiny::moduleServer(id, function(input, output, session) {

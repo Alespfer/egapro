@@ -1,6 +1,29 @@
+
+# ==============================================================================
+# Fichier R/documentation.R (MODIFIÉ AVEC L'INTERFACE DE MISE À JOUR)
+# ==============================================================================
 documentation_content <- fluidPage(
   style = "padding: 20px; max-width: 900px; margin: auto;",
   
+  # --- SECTION DE MISE À JOUR (NOUVEAU) ---
+  # Ce panneau ne sera visible que si l'application est lancée en local
+  # (c'est une sécurité pour ne pas l'afficher en production sur shinyapps.io)
+  if (Sys.getenv("SHINY_PORT") == "") {
+    bslib::card(
+      bslib::card_header(
+        shiny::h4("Panneau d'Administration : Mise à Jour des Données")
+      ),
+      bslib::card_body(
+        shiny::p("Cliquez sur le bouton ci-dessous pour lancer manuellement le processus de mise à jour. L'opération peut prendre plusieurs minutes. L'application se rechargera automatiquement une fois la mise à jour terminée."),
+        # Le bouton qui déclenchera la mise à jour
+        shiny::actionButton("trigger_data_update", "Lancer la mise à jour des données", 
+                            icon = shiny::icon("sync"), class = "btn-warning")
+      )
+    )
+  }
+  ,
+  
+  # --- CONTENU EXISTANT DE LA DOCUMENTATION ---
   h3(strong("Mission du Baromètre")),
   p("Le « Baromètre de la Parité en Entreprise – Territoires du Grand Paris » est un outil interactif d'aide à la décision conçu pour éclairer les politiques publiques en matière d'égalité professionnelle. Il permet de visualiser, comparer et suivre les performances des entreprises du Grand Paris via l'Index Egapro, en les mettant en perspective avec les dynamiques socio-économiques locales."),
   p("Il s'adresse principalement aux :"),
