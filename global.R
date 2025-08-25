@@ -26,6 +26,7 @@ library(jsonlite)
 library(viridis)
 library(shinydashboard)
 library(writexl)
+library(weights)
 
 # ------------------------------------------------------------------------------
 # 2. Chargement des sources (AVEC LE BON CHEMIN)

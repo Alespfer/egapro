@@ -320,8 +320,11 @@ load_and_prepare_map <- function() {
 
 
 aggregate_map <- function(map_com_sf, level = "ept") {
-  group_vars <- if (level == "ept") c("ept_code", "ept_name") else c("dep_code", "dep_name")
-  
+  group_vars <- dplyr::case_when(
+    level == "ept" ~ c("ept_code", "ept_name"),
+    level == "ze"  ~ c("ze_code", "ze_name"),
+    TRUE           ~ c("dep_code", "dep_name") # "dep" devient le cas par défaut
+  )  
   map_com_sf %>%
     dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) %>%
     dplyr::summarise(geometry = sf::st_union(geometry), .groups = "drop")
@@ -490,4 +493,47 @@ run_data_update_pipeline <- function() {
     shiny::incProgress(0.1, detail = "Mise à jour terminée !")
     Sys.sleep(2) # Petite pause pour que l'utilisateur voie le message final
   })
+}
+
+
+
+
+
+
+#' Agrège les données socio-démographiques communales par Zone d'Emploi.
+#'
+#' @param communes_features_df Le dataframe des indicateurs par commune.
+#' @return Un dataframe avec les mêmes indicateurs, agrégés par Zone d'Emploi.
+aggregate_socio_to_ze <- function(communes_features_df) {
+  message("--- Agrégation des indicateurs socio-démographiques par Zone d'Emploi ---")
+  
+  # 1. Chargement de la table de correspondance
+  path_ze_ref <- "data/raw/commune_ze_2020.xlsx"
+  if (!file.exists(path_ze_ref)) {
+    stop("Fichier de correspondance 'commune_ze_2020.xlsx' introuvable.")
+  }
+  ze_ref <- readxl::read_excel(path_ze_ref) %>%
+    dplyr::select(code_commune = CODGEO, ze_code = ZE2020, ze_name = LIBZE2020)
+  
+  # 2. Jointure et agrégation
+  ze_features <- communes_features_df %>%
+    # Joindre avec la table de correspondance pour obtenir le code ZE
+    dplyr::inner_join(ze_ref, by = "code_commune") %>%
+    # Grouper par Zone d'Emploi
+    dplyr::group_by(ze_code, ze_name) %>%
+    # Calculer la moyenne des indicateurs pour toutes les communes de la ZE
+    # NOTE: C'est une moyenne simple, qui est une approximation. L'idéal serait une moyenne pondérée par la population,
+    # mais cela reste une amélioration considérable.
+    dplyr::summarise(
+      dplyr::across(
+        .cols = where(is.numeric),
+        .fns = ~mean(.x, na.rm = TRUE)
+      ),
+      .groups = "drop"
+    ) %>%
+    # Remplacer les NaN potentiels par des NA
+    dplyr::mutate(dplyr::across(where(is.numeric), ~ ifelse(is.nan(.x), NA, .x)))
+  
+  message("✅ Agrégation terminée : ", nrow(ze_features), " Zones d'Emploi traitées.")
+  return(ze_features)
 }

@@ -88,6 +88,10 @@ Nous chargeons et préparons notre fond de carte de référence des communes de 
 ```{r prepare-geo}
 # Chargement du fond de carte des communes depuis une source ouverte
 map_com_prepared <- load_and_prepare_map()
+
+
+map_com_prepared <- map_com_prepared %>%
+  dplyr::mutate(ze_code = as.character(ze_code))
 ```
 
 ### Étape 4 : Création de la Table Finale
@@ -95,18 +99,22 @@ map_com_prepared <- load_and_prepare_map()
 Nous joignons toutes nos données pour créer une table unique, `master_df_historique`. Chaque ligne représente la performance d'une entreprise pour une année donnée, localisée et enrichie avec les données de son territoire d'implantation.
 
 ```{r create-master-table}
+# ÉTAPE CORRIGÉE : Créer les features agrégées par Zone d'Emploi
+ze_socio_features <- aggregate_socio_to_ze(communes_features)
+
 master_df_historique <- egapro_prepared %>%
-  # Jointure avec SIRENE pour la localisation 
+  # Jointure avec SIRENE pour la localisation
   inner_join(sirene_clean, by = "siren") %>%
-  
-  # Jointure avec les attributs du fond de carte pour récupérer les infos EPT/DEP
+
+  # Jointure avec les attributs du fond de carte pour récupérer les infos EPT/DEP/ZE
   inner_join(st_drop_geometry(map_com_prepared), by = c("code_commune" = "com_code")) %>%
-  
-  # Jointure avec les indicateurs socio-démographiques
-  left_join(communes_features, by = "code_commune")
+
+  # ACTION FINALE : JOINTURE UNIQUE ET DÉFINITIVE AVEC LES DONNÉES PAR ZONE D'EMPLOI
+  # C'est la seule source de données socio-démographiques pour notre analyse.
+  left_join(ze_socio_features, by = "ze_code")
 
 message(
-  "✅ Table 'master_df_historique' finale créée avec ", 
+  "✅ Table 'master_df_historique' finale créée avec ",
   scales::comma(nrow(master_df_historique)), " observations."
 )
 ```
